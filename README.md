@@ -4,14 +4,13 @@
 
 ### copy `config.dev.json` to `config.json`
 
-1. Install dependecies
-`yarn`
+1. Install dependencies: `yarn`
 
 2. Change `config.json` and provide credentials for elasticsearch.
 
-You can proide apiKey for Cloud/Serverless, or just username/password
+You can provide apiKey for Cloud/Serverless, or just username/password.
 
-Examles of config:
+Examples of config:
 
 ```
 {
@@ -61,7 +60,7 @@ Examles of config:
 
 `yarn start delete-alerts` - Delete all alerts
 
-### Api tests
+### API tests
 
 `yarn start test-risk-score` - Test risk score API time response
 
@@ -71,9 +70,9 @@ Examles of config:
 To modify alert document, you can change `createAlert.ts` file.
 
 
-### How to test Risk Score Api
+### How to test Risk Score API
 
-Example list of command for testing Risk Score API woth 10.000 alerts.
+Example list of command for testing Risk Score API worth 10.000 alerts.
 ```
 yarn start delete-alerts
 yarn start generate-alerts -n 10000 -h 100 -u 100
@@ -105,3 +104,67 @@ yarn start test-risk-score
 6. Run `yarn start generate-events n`. Where `n` is the amount of documents that will be generated.
 
 7. `yarn start delete-events` to remove all documents from event index after your test.
+
+## Entity Store Performance Testing
+
+### Sending one of the pre-built files
+
+#### One time send
+
+To upload a perf file once, use the `upload-perf-data` command, e.g:
+
+```
+# upload the small file, delete all logs and entities beforehand
+yarn start upload-perf-data-interval small --delete
+```
+
+If you omit the file name you will be presented with a picker. 
+
+#### Send at an interval
+A better test is to send data at an interval to put the system under continued load.
+
+To do this use the `upload-perf-data-interval` command. This will upload a file 10 times with 30 seconds between each send by default, e.g:
+
+```
+# upload the small data file 10 times with 30 seconds between sends
+yarn start upload-perf-data-interval small --deleteEntities
+```
+
+The count and interval can be customized:
+
+```
+# upload the small data file 100 times with 60 seconds between sends
+yarn start upload-perf-data-interval small --deleteEntities --interval 60 --count 100
+```
+
+The entity IDs are modified before sending so that each upload creates new entities, this means there will be count * entityCount entities by the end of the test.
+
+While the files are uploaded, we poll elasticsearch for the cluster health and the transform health, these files can be found in `./logs`. Where one file contains the cluster health every 5 seconds, and the other contains the transform health every 5 seconds:
+
+```
+> ll logs
+total 464
+-rw-r--r--@ 1 mark  staff    33K Oct 28 11:20 small-2024-10-28T11:14:06.828Z-cluster-health.log
+-rw-r--r--@ 1 mark  staff   145K Oct 28 11:20 small-2024-10-28T11:14:06.828Z-transform-stats.log
+```
+
+### Generating a data file
+
+To generate a data file for performance testing, use the `create-perf-data` command. 
+
+E.g this is how 'large' was created:
+
+```
+# create a file with 100k entities each with 5 logs.
+yarn start create-perf-data large 100000 5
+```
+
+Entities are split 50/50 host/user.
+The log messages created contain incremental data, e.g the first log message for a host would contain IP 192.168.1.0 and 192.168.1.1, the second log would contain 192.168.1.2 and 192.168.1.3. This way when 5 log messages are sent, an entity should have 10 IP addresses ranging from 0 - 10. 
+
+
+### Generate rules and gaps
+
+Will generate 100 rules with 10000 gaps per rule.
+
+`yarn start rules --rules 100 -g 10000 -c -i"48h"`

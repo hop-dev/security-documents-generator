@@ -1,12 +1,25 @@
 import { faker } from '@faker-js/faker';
 import { generateNewSeed } from '../constants';
-import { assignAssetCriticalityToEntities, createRandomHost, createRandomUser } from './entity-store';
-
+import {
+  assignAssetCriticalityToEntities,
+  createRandomHost,
+  createRandomUser,
+} from './entity-store';
 
 /**
  * Generate asset criticality
  */
-export const generateAssetCriticality = async ({ users, hosts, seed = generateNewSeed() }: { users: number; hosts: number; seed?: number}) => {
+export const generateAssetCriticality = async ({
+  users,
+  hosts,
+  seed = generateNewSeed(),
+  space = 'default',
+}: {
+  users: number;
+  hosts: number;
+  seed?: number;
+  space: string;
+}) => {
   faker.seed(seed);
 
   try {
@@ -17,12 +30,20 @@ export const generateAssetCriticality = async ({ users, hosts, seed = generateNe
     const generatedHosts = faker.helpers.multiple(createRandomHost, {
       count: hosts,
     });
-    
-    await assignAssetCriticalityToEntities(generatedUsers, 'user.name');
+
+    await assignAssetCriticalityToEntities({
+      entities: generatedUsers,
+      field: 'user.name',
+      space,
+    });
     console.log(`Assigned asset criticality to ${generatedUsers.length} users`);
-    await assignAssetCriticalityToEntities(generatedHosts, 'host.name');
+    await assignAssetCriticalityToEntities({
+      entities: generatedHosts,
+      field: 'host.name',
+      space,
+    });
     console.log(`Assigned asset criticality to ${generatedHosts.length} hosts`);
-    
+
     console.log('Finished generating asset criticality');
   } catch (error) {
     console.log('Error: ', error);
