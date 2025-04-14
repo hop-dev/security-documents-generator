@@ -6,8 +6,6 @@ import {
   initPrivmon,
   enableRiskScore,
 } from '../utils/kibana_api';
-const client = getEsClient();
-
 const PRIVMON_INDEX_PREFIX = 'risk-score.risk-monitoring';
 
 const getPrivmonLoginsIndex = (namespace: string) =>
@@ -165,9 +163,8 @@ const BATCH_SIZE = 1000;
 const bulkCreate = async (docs: unknown[], index: string) => {
   const ops = docs.flatMap((doc) => [{ create: { _index: index } }, doc]);
 
-  if (!client) {
-    throw new Error('failed to create ES client');
-  }
+  const es = getEsClient();
+
   const progress = new cliProgress.SingleBar(
     {
       format: `Indexing ${index} | {bar} | {percentage}% | {value}/{total} Docs`,
@@ -178,7 +175,7 @@ const bulkCreate = async (docs: unknown[], index: string) => {
   for (let i = 0; i < ops.length; i += BATCH_SIZE) {
     const body = ops.slice(i, i + BATCH_SIZE);
     try {
-      const result = await client.bulk({ body, refresh: true });
+      const result = await es.bulk({ body, refresh: true });
       if (result.errors) {
         console.log('Bulk error: ', JSON.stringify(result));
         process.exit(1);
@@ -305,7 +302,7 @@ export const multipleLoginsFromDifferentIps = async ({
     .fill(null)
     .map(() =>
       createLoginDoc({
-        username: faker.internet.userName(),
+        username: faker.internet.username(),
         ip: faker.internet.ip(),
         sourceIp: faker.internet.ip(),
       }),
@@ -406,11 +403,9 @@ export const createPrivmonData = async ({
 };
 
 export const deleteAllPrivmonData = async () => {
-  if (!client) {
-    throw new Error('failed to create ES client');
-  }
+  const es = getEsClient();
 
-  await client.indices.delete({
+  await es.indices.delete({
     index: `${PRIVMON_INDEX_PREFIX}.*`,
     ignore_unavailable: true,
   });
