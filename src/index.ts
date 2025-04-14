@@ -30,6 +30,9 @@ import {
   createSimilarUsers,
 } from './commands/privmon';
 import { generateRulesAndAlerts, deleteAllRules } from './commands/rules';
+import { createConfigFileOnFirstRun } from './utils/create_config_on_first_run';
+
+await createConfigFileOnFirstRun();
 
 const parseIntBase10 = (input: string) => parseInt(input, 10);
 
