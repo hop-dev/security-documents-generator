@@ -7,7 +7,10 @@ import {
   generateGraph,
   generateEvents,
 } from './commands/documents';
-import { setupEntityResolutionDemo } from './commands/entity_resolution';
+import {
+  sendEntityResolutionDataForEntity,
+  setupEntityResolutionDemo,
+} from './commands/entity_resolution';
 import { generateLegacyRiskScore } from './commands/legacy_risk_score';
 import { kibanaApi } from './utils/';
 import { cleanEntityStore, generateEntityStore } from './commands/entity-store';
@@ -163,6 +166,25 @@ program
   .description('Load entity resolution demo data')
   .action(({ mini, deleteData, keepEmails, space }) => {
     setupEntityResolutionDemo({ mini, deleteData, keepEmails, space });
+  });
+
+program
+  .command('send-entity-resolution-for-user')
+  .option('--username <username>', 'User to send entity resolution for')
+  .option('--delete', 'Delete old data', false)
+  .option('--keep-emails', 'No Email variants', false)
+  .option('--mini', 'Only load the mini dataset', false)
+  .action(({ username, deleteData, keepEmails, mini }) => {
+    if (!username) {
+      console.error('User is required');
+      process.exit(1);
+    }
+    sendEntityResolutionDataForEntity({
+      mini,
+      deleteData,
+      keepEmails,
+      username,
+    });
   });
 
 program

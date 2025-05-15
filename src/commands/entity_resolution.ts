@@ -5,6 +5,7 @@ import {
   getRule,
   createComponentTemplate,
   buildKibanaUrl,
+  enableRiskScore,
 } from '../utils/kibana_api';
 import pMap from 'p-map';
 import cliProgress from 'cli-progress';
@@ -232,6 +233,7 @@ const jsonlFileToBatchGenerator = (
   batchSize: number,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   lineToOperation: (line: any, index: number) => [any, any],
+  onlyForUsername?: string,
 ): AsyncGenerator<unknown[], void, void> => {
   const rl = readline.createInterface({
     input: fs.createReadStream(filePath),
@@ -244,6 +246,13 @@ const jsonlFileToBatchGenerator = (
       const lineJson = JSON.parse(line);
       const lineWithMeta = addMetaToLine(lineJson);
       const [index, doc] = lineToOperation(lineWithMeta, i);
+      if (
+        onlyForUsername &&
+        doc?.user?.name !== onlyForUsername &&
+        doc['user.name'] !== onlyForUsername
+      ) {
+        continue;
+      }
       batch.push(index);
       batch.push(doc);
       if (batch.length / 2 >= batchSize) {
@@ -270,9 +279,11 @@ const getFilePath = (fileName: string, mini: boolean) => {
 const importLogData = async ({
   mini = false,
   keepEmails = false,
+  onlyForUsername,
 }: {
   mini: boolean;
   keepEmails: boolean;
+  onlyForUsername?: string;
 }) => {
   const filePath = getFilePath('generated_logs.jsonl', mini);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -297,7 +308,7 @@ const importLogData = async ({
   };
 
   console.log('Importing log data...');
-  await importFile(filePath, lineToOperation);
+  await importFile(filePath, lineToOperation, onlyForUsername);
 };
 
 const createOktaSystemComponentTemplate = async () => {
@@ -311,9 +322,11 @@ const createOktaSystemComponentTemplate = async () => {
 const importOktaSystemData = async ({
   mini = false,
   keepEmails = false,
+  onlyForUsername,
 }: {
   mini: boolean;
   keepEmails: boolean;
+  onlyForUsername?: string;
 }) => {
   const filePath = getFilePath('okta_system_generated.jsonl', mini);
   const index = 'logs-okta.system-default';
@@ -329,7 +342,7 @@ const importOktaSystemData = async ({
     return [{ create: { _index: index } }, line];
   };
   console.log('Importing Okta system data...');
-  await importFile(filePath, lineToOperation);
+  await importFile(filePath, lineToOperation, onlyForUsername);
 };
 
 const createOktaUserComponentTemplate = async () => {
@@ -351,9 +364,11 @@ const createEntraIdUserComponentTemplate = async () => {
 const importOktaUserData = async ({
   mini = false,
   keepEmails = false,
+  onlyForUsername,
 }: {
   mini: boolean;
   keepEmails: boolean;
+  onlyForUsername?: string;
 }) => {
   const filePath = getFilePath('okta_user_generated.jsonl', mini);
   const index = 'logs-entityanalytics_okta.user-default';
@@ -367,15 +382,17 @@ const importOktaUserData = async ({
     return [{ create: { _index: index } }, line];
   };
   console.log('Importing Okta user data...');
-  await importFile(filePath, lineToOperation);
+  await importFile(filePath, lineToOperation, onlyForUsername);
 };
 
 const importEntraIdUserData = async ({
   mini = false,
   keepEmails = false,
+  onlyForUsername,
 }: {
   mini: boolean;
   keepEmails: boolean;
+  onlyForUsername?: string;
 }) => {
   const filePath = getFilePath('entra_id_user_generated.jsonl', mini);
   const index = 'logs-entityanalytics_entra_id.user-default';
@@ -391,19 +408,21 @@ const importEntraIdUserData = async ({
     return [{ create: { _index: index } }, line];
   };
   console.log('Importing Entra ID user data...');
-  await importFile(filePath, lineToOperation);
+  await importFile(filePath, lineToOperation, onlyForUsername);
 };
 
 const importFile = async (
   filePath: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   lineToOperation: (line: any, index: number) => [any, any],
+  onlyForUsername?: string,
 ) => {
   const lineCountInFile = await getFileLineCount(filePath);
   const batchGenerator = jsonlFileToBatchGenerator(
     filePath,
     BATCH_SIZE,
     lineToOperation,
+    onlyForUsername,
   );
   await batchIndexDocsWithProgress(batchGenerator, lineCountInFile);
 };
@@ -449,7 +468,30 @@ const batchIndexDocsWithProgress = async (
   );
 
   progress.stop();
-  console.log('Indexed ', docCount, '✅');
+  console.log('Indexed ', progress.getTotal(), ' documents');
+};
+
+export const sendEntityResolutionDataForEntity = async ({
+  username,
+  mini = false,
+  deleteData = false,
+  keepEmails = false,
+}: {
+  username: string;
+  mini: boolean;
+  deleteData: boolean;
+  keepEmails: boolean;
+}) => {
+  if (deleteData) {
+    console.log('Deleting existing demo data first...');
+    await clearData();
+  }
+  console.log('Sending entity resolution data for entity ' + username);
+
+  await importLogData({ mini, keepEmails, onlyForUsername: username });
+  await importOktaSystemData({ mini, keepEmails, onlyForUsername: username });
+  await importOktaUserData({ mini, keepEmails, onlyForUsername: username });
+  await importEntraIdUserData({ mini, keepEmails, onlyForUsername: username });
 };
 
 export const setupEntityResolutionDemo = async ({
@@ -484,8 +526,13 @@ export const setupEntityResolutionDemo = async ({
   await importOktaSystemData({ mini, keepEmails });
   await importOktaUserData({ mini, keepEmails });
   await importEntraIdUserData({ mini, keepEmails });
+
+  console.log('Enabling risk engine...');
+
+  await enableRiskScore(space);
+
   console.log(`
-Entity resolution demo setup complete. 
+Entity resolution demo setup complete.  
 
 Now go and install the model!
 
