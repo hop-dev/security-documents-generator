@@ -307,8 +307,8 @@ program
 
     console.log('downgrading risk engine mapping version');
 
-    await client.updateByQuery({
-      index: '.kibana_security_solution_9.1*',
+    const updateREs = await client.updateByQuery({
+      index: '.kibana_security_solution_*',
       query: {
         bool: {
           must: [
