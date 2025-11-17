@@ -1,8 +1,8 @@
-import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment';
+import { faker } from '@faker-js/faker';
 
 export const createAgentDocument = ({ hostname }: { hostname: string }) => {
-  const agentId = uuidv4();
+  const agentId = faker.string.uuid();
 
   const nowTimestamp = moment().utc().toISOString();
 
