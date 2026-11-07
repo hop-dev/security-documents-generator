@@ -80,8 +80,16 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
   const bb = backbone(p);
   // Random pools hold the generated backbone only: planted pathology nodes are reached through
   // their @ names, so random edges never change a planted structure.
+  // Built-in groups (Everyone, Domain Users, Domain Admins, ...) are reached on purpose only,
+  // through `fixed` or a planted pathology: drawn at random they made 5% of staff Domain Admins.
+  // Department groups (@okta:…, @ad:…) stay in the pools.
+  const builtIns = new Set(
+    [...bb.byName].filter(([ref]) => !ref.includes(':')).map(([, n]) => n.entityId),
+  );
   const byType = new Map<NodeType, Target[]>();
-  for (const n of bb.nodes) byType.set(n.type, [...(byType.get(n.type) ?? []), n]);
+  for (const n of bb.nodes) {
+    if (!builtIns.has(n.entityId)) byType.set(n.type, [...(byType.get(n.type) ?? []), n]);
+  }
   const planted = plantPathologies(p, bb);
   bb.nodes.push(...planted.nodes);
   for (const [ref, n] of planted.refs) bb.byName.set(ref, n);

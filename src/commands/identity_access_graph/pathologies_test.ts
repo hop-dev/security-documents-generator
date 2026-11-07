@@ -167,3 +167,10 @@ test('a scenario that references a pathology node switches that pathology on', (
     'indirect_role_chain',
   ]);
 });
+
+test('the vault is a pathology node too: referencing it switches the chain on', () => {
+  assert.deepEqual(
+    pathologiesReferenced({ edges: [['r', 'bucket policy', '@customer-pii-vault']] }),
+    ['indirect_role_chain'],
+  );
+});

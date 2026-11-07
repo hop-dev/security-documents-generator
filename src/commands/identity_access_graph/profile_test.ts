@@ -179,3 +179,8 @@ test('guardrail: refuses above the limit, with the message the spec gives', () =
   );
   assert.doesNotThrow(() => checkSize(estimateSize(big), 70_000_000));
 });
+
+test('arrays_cap defaults to 1,000 when the profile leaves it out', () => {
+  const { arrays_cap: _, ...rest } = TINY;
+  assert.equal(loadProfile(rest).arraysCap, 1000);
+});

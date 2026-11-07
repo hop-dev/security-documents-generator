@@ -18,6 +18,8 @@ export const PATHOLOGY_REFS: Record<string, string> = {
   '@AADC Admins': 'msol_bypass',
   '@chain-oncall': 'indirect_role_chain',
   '@BreakGlassAccountRole': 'breakglass_role',
+  // Shared by the chain and the break-glass role; referencing it plants the chain.
+  '@customer-pii-vault': 'indirect_role_chain',
 };
 
 /** Path users for the choke point and its bypass: example 3's 20. */

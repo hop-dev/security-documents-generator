@@ -182,13 +182,13 @@ export const loadScenario = (raw: unknown, { seed, now, company }: LoadOptions):
     const [fromId, kind, toId, options = {}] = e as [unknown, unknown, unknown, unknown];
     const label = `${String(fromId)} -[${String(kind)}]-> ${String(toId)}`;
     const isRef = (v: unknown): v is string => typeof v === 'string' && v.startsWith('@');
-    if (!company && (isRef(fromId) || isRef(toId))) {
-      skipped.push(label);
-      continue;
-    }
     // A company node only as a target: its own document (and its ids arrays) is the company's.
     if (isRef(fromId)) {
       fail(name, `edge ${label}: a company node (${fromId}) can only be an edge target`);
+    }
+    if (!company && isRef(toId)) {
+      skipped.push(label);
+      continue;
     }
     const from =
       byId.get(str(fromId, 'edge source', name)) ??

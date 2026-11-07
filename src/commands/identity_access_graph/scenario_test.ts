@@ -249,3 +249,10 @@ test('planted, a company node can only be an edge target', () => {
     /a company node \(@Everyone\) can only be an edge target/,
   );
 });
+
+test('a company node as an edge source fails alone too, not only when planted', () => {
+  assert.throws(
+    () => loadScenario(withEdges([['@Everyone', 'SSO to role', 'r_oncall']]), opts),
+    /a company node \(@Everyone\) can only be an edge target/,
+  );
+});

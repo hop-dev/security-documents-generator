@@ -7,6 +7,7 @@ import path from 'path';
 import { getEsClient } from '../utils/indices.ts';
 import {
   cleanIdentityAccessGraph,
+  edgesIndexBody,
   generateIdentityAccessGraph,
   loadIdentityAccessScenario,
 } from './writer.ts';
@@ -116,6 +117,12 @@ test('generate a company, refuse a second run, clean', { skip }, async () => {
   assert.equal(manifest.profile.employees, 1500);
   assert.equal(manifest.profile.seed, seed);
   assert.equal(manifest.counts.nodes.okta_user, 1500);
+  assert.equal(manifest.counts.employees, 1500);
+  const c = manifest.counts.nodes;
+  assert.equal(
+    manifest.counts.identities,
+    (c.okta_user ?? 0) + (c.ad_acct ?? 0) + (c.local_acct ?? 0) + (c.iam_user ?? 0),
+  );
   assert.ok(manifest.estimate.nodes > 0);
 
   // Every node and edge is checked: no doc without EngineMetadata.Type, edges only of known kinds.
@@ -210,4 +217,45 @@ test('a scenario node with a company id fails before anything is written', { ski
     query: { term: { 'labels.identity_graph_seed': String(seed) } },
   });
   assert.equal(count, 0);
+});
+
+test(
+  'a planted scenario that cannot be written fails before anything is written',
+  { skip },
+  async () => {
+    const seed = 990048;
+    const file = path.join(mkdtempSync(path.join(tmpdir(), 'iag-')), 'blind.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        name: 'blind',
+        description: 'A blind-spot node, which the writer does not support yet.',
+        nodes: [{ id: 'h', type: 'host', name: 'blind-host', blind_spot: true }],
+        edges: [],
+      }),
+    );
+    await assert.rejects(
+      generateIdentityAccessGraph({ employees: 100, seed, space: SPACE, now: NOW, scenario: file }),
+      /blind_spot is not supported yet/,
+    );
+    const { count } = await getEsClient().count({
+      index: 'entities-latest-default',
+      query: { term: { 'labels.identity_graph_seed': String(seed) } },
+    });
+    assert.equal(count, 0, 'nothing written');
+  },
+);
+
+test('the edges index the generator creates uses replicas that fit a one-node cluster', () => {
+  const body = edgesIndexBody('x');
+  assert.equal(body.settings['index.mode'], 'lookup');
+  assert.equal(body.settings['index.hidden'], true);
+  assert.equal(body.settings['index.auto_expand_replicas'], '0-1');
+});
+
+test('a missing profile file says so, before touching Elasticsearch', async () => {
+  await assert.rejects(
+    generateIdentityAccessGraph({ profile: '/nonexistent/profile.json', space: SPACE, now: NOW }),
+    /profile file not found: \/nonexistent\/profile\.json/,
+  );
 });

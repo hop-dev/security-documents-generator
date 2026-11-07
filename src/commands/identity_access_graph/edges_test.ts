@@ -217,3 +217,42 @@ test("resolution: each Okta user resolves to the AD account with the same email,
   assert.ok(admins.size > 0);
   assert.ok(resolved.every((e) => !admins.has(e.dst)));
 });
+
+test('random and same pickers never draw built-in groups: Domain Admins is reached on purpose only', () => {
+  // Regression: the default profile's random AD groups made 5% of employees Domain Admins.
+  const g = gen(base.edges as object[]);
+  const { edges } = allChunks(g);
+  for (const ref of ['@Domain Admins', '@Enterprise Admins', '@Domain Computers']) {
+    const id = g.backbone.byName.get(ref)?.entityId;
+    const members = edges.filter((e) => e.dst === id && e.kind === 'member_of');
+    assert.equal(members.length, 0, `${ref} has ${members.length} members`);
+  }
+  // Domain Users comes from the profile's `fixed` picker: every AD account with a membership row.
+  const du = g.backbone.byName.get('@Domain Users')?.entityId;
+  assert.ok(edges.filter((e) => e.dst === du).length > 1000);
+});
+
+test('default profile: rate pathologies 8, 11 and 12 and workstation admins are generated', () => {
+  const g = gen(base.edges as object[], 3000);
+  const { edges, byId } = allChunks(g);
+  const of = (kind: string) => edges.filter((e) => e.kind === kind);
+  // 11: an admin account owns the daily account of the same person.
+  const adminOwns = of('owns').filter((e) => byId.get(e.src)?.type === 'ad_acct');
+  assert.ok(adminOwns.length > 0, 'admin accounts own daily accounts');
+  for (const e of adminOwns) {
+    const [a, d] = [byId.get(e.src), byId.get(e.dst)];
+    assert.ok(!a?.email && d?.email && a?.slot === d?.slot, `${e.src} owns ${e.dst}`);
+  }
+  // 8: a person owns their local account (owns is not walked).
+  assert.ok(
+    of('owns').some((e) => byId.get(e.src)?.type === 'okta_user'),
+    'okta users own local accounts',
+  );
+  // 12: one machine, two ids.
+  assert.ok(of('same_machine').length > 0, 'some instances are the same machine as a host');
+  // Local admin reaches workstations too, not only servers.
+  assert.ok(
+    of('local_admin').some((e) => byId.get(e.dst)?.tier === 2),
+    'workstation admins',
+  );
+});

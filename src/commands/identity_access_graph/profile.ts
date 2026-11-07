@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { meanCount, parseDistribution, type Distribution } from './distributions.ts';
+import { DEFAULT_ARRAYS_CAP } from './documents.ts';
 import { findTriple, isNodeType, type NodeType, type Triple } from './triples.ts';
 
 // The profile: every advanced setting for a generated company (SPEC.md section 1, Profile).
@@ -266,7 +267,10 @@ export const loadProfile = (raw: unknown, overrides: ProfileOverrides = {}): Pro
     perEmployee,
     edges: orderRows(rows),
     logonCount: parseDistribution(raw.logon_count, 'profile: logon_count'),
-    arraysCap: wholeNumber(raw.arrays_cap, 'arrays_cap', 0),
+    arraysCap:
+      raw.arrays_cap === undefined
+        ? DEFAULT_ARRAYS_CAP
+        : wholeNumber(raw.arrays_cap, 'arrays_cap', 0),
     pathologies,
     blindSpots,
   };

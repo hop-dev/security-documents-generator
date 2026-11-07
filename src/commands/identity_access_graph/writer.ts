@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { type Client } from '@elastic/elasticsearch';
 import { getEsClient } from '../utils/indices.ts';
@@ -27,9 +27,12 @@ export const latestAlias = (space: string) => `entities-latest-${space}`;
 export const edgesAlias = (space: string) => `entities-edges-${space}`;
 export const edgesIndex = (space: string) => `.entities.v2.edges.${space}-00001`;
 
-/** Same index as dev/edges_index.sh: hidden, lookup mode, strict mapping. */
-const EDGES_INDEX_BODY = (space: string) => ({
-  settings: { 'index.hidden': true, 'index.mode': 'lookup' },
+/**
+ * Same index as dev/edges_index.sh: hidden, lookup mode, strict mapping. Replicas 0-1, so a
+ * one-node cluster stays green and a bigger one keeps a copy.
+ */
+export const edgesIndexBody = (space: string) => ({
+  settings: { 'index.hidden': true, 'index.mode': 'lookup', 'index.auto_expand_replicas': '0-1' },
   aliases: { [edgesAlias(space)]: { is_hidden: true } },
   mappings: {
     dynamic: 'strict' as const,
@@ -73,7 +76,7 @@ const assertSeedFree = async (es: Client, space: string, seed: number, scenario?
 
 const ensureEdgesIndex = async (es: Client, space: string) => {
   if (await es.indices.exists({ index: edgesIndex(space), expand_wildcards: 'all' })) return;
-  await es.indices.create({ index: edgesIndex(space), ...EDGES_INDEX_BODY(space) });
+  await es.indices.create({ index: edgesIndex(space), ...edgesIndexBody(space) });
   log.info(`Created edges index ${edgesIndex(space)} (alias ${edgesAlias(space)})`);
 };
 
@@ -209,6 +212,8 @@ export const generateIdentityAccessGraph = async ({
   scenario: scenarioArg,
 }: GenerateParams) => {
   // Everything that can fail without touching Elasticsearch runs first.
+  if (profilePath && !existsSync(profilePath))
+    throw new Error(`profile file not found: ${profilePath}`);
   const raw = (
     profilePath ? JSON.parse(readFileSync(profilePath, 'utf8')) : readBundledProfile('default')
   ) as Record<string, unknown>;
@@ -250,6 +255,10 @@ export const generateIdentityAccessGraph = async ({
     }
   };
   checkCollisions(gen.backbone.nodes);
+  // Build the scenario's documents now: anything they can't hold fails before any write.
+  const scenarioDocs = scenario
+    ? buildDocuments(scenario, { seed: p.seed, now, arraysCap: p.arraysCap })
+    : undefined;
 
   const es = getEsClient();
   await assertEntityStoreInstalled(es, space);
@@ -260,8 +269,11 @@ export const generateIdentityAccessGraph = async ({
   const capHits: Record<string, number> = {};
   let nodes = 0;
   let edges = 0;
-  const write = async (part: { nodes: ScenarioNode[]; edges: EdgeDoc[] }) => {
-    const docs = buildDocuments(part, { seed: p.seed, now, arraysCap: p.arraysCap });
+  const write = async (
+    part: { nodes: ScenarioNode[]; edges: EdgeDoc[] },
+    built?: BuiltDocuments,
+  ) => {
+    const docs = built ?? buildDocuments(part, { seed: p.seed, now, arraysCap: p.arraysCap });
     await writeDocuments(es, space, docs);
     countBy(
       part.nodes.map((n) => n.type),
@@ -277,7 +289,7 @@ export const generateIdentityAccessGraph = async ({
   };
 
   await write({ nodes: gen.backbone.nodes, edges: gen.backboneEdges });
-  if (scenario) await write(scenario);
+  if (scenario) await write(scenario, scenarioDocs);
   for (let c = 0; c < gen.chunks; c++) {
     const chunk = gen.chunk(c);
     checkCollisions(chunk.nodes);
@@ -300,7 +312,14 @@ export const generateIdentityAccessGraph = async ({
     ...(scenario && { scenario: { name: scenario.name, description: scenario.description } }),
     planted_pathologies: gen.planted,
     ...(switchedOn.length && { switched_on_by_scenario: switchedOn }),
-    counts,
+    counts: {
+      employees: p.employees,
+      identities: ['okta_user', 'ad_acct', 'local_acct', 'iam_user', 'gh_user'].reduce(
+        (n, t) => n + (counts.nodes[t] ?? 0),
+        0,
+      ),
+      ...counts,
+    },
     arrays_cap_hits: capHits,
     not_generated_yet: notYet,
   });

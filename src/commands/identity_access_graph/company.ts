@@ -41,7 +41,8 @@ const HOST_TIERS: Array<[Tier, number]> = [
 const AD_GROUP_TIERS: Array<[Tier | undefined, number]> = [
   [0, 0.02],
   [1, 0.08],
-  [undefined, 0.9],
+  [2, 0.15],
+  [undefined, 0.75],
 ];
 
 /** Node types owned by an employee slot; every other type is backbone. */
@@ -277,7 +278,9 @@ export const backbone = (p: Profile): Backbone => {
       const rng = rngFor(p.seed, 'backbone', type, k);
       const department = pickDepartment(rng);
       const word = WORDS[rng.int(0, WORDS.length - 1)];
-      const tier = type === 'ad_group' ? weighted(rng, AD_GROUP_TIERS) : undefined;
+      // AD groups may administer a host tier; cloud instances are servers (tier 1).
+      const tier =
+        type === 'ad_group' ? weighted(rng, AD_GROUP_TIERS) : type === 'compute' ? 1 : undefined;
       add(
         node(p, {
           type,
