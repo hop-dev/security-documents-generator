@@ -236,12 +236,12 @@ test('default profile: rate pathologies 8, 11 and 12 and workstation admins are 
   const g = gen(base.edges as object[], 3000);
   const { edges, byId } = allChunks(g);
   const of = (kind: string) => edges.filter((e) => e.kind === kind);
-  // 11: an admin account owns the daily account of the same person.
-  const adminOwns = of('owns').filter((e) => byId.get(e.src)?.type === 'ad_acct');
-  assert.ok(adminOwns.length > 0, 'admin accounts own daily accounts');
-  for (const e of adminOwns) {
-    const [a, d] = [byId.get(e.src), byId.get(e.dst)];
-    assert.ok(!a?.email && d?.email && a?.slot === d?.slot, `${e.src} owns ${e.dst}`);
+  // 11: the person's daily account owns their admin account (example 3: jlee owns da-jlee).
+  const adOwns = of('owns').filter((e) => byId.get(e.src)?.type === 'ad_acct');
+  assert.ok(adOwns.length > 0, 'daily accounts own admin accounts');
+  for (const e of adOwns) {
+    const [d, a] = [byId.get(e.src), byId.get(e.dst)];
+    assert.ok(d?.email && !a?.email && a?.slot === d?.slot, `${e.src} owns ${e.dst}`);
   }
   // 8: a person owns their local account (owns is not walked).
   assert.ok(

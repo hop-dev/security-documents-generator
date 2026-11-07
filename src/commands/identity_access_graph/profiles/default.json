@@ -288,7 +288,7 @@
           "own": true
         }
       ],
-      "source": "pathology 11: an admin account -> its person's daily account (SPEC section 3 table); daily accounts own nothing"
+      "source": "pathology 11: a person's daily account owns their admin accounts (graph-examples example 3: jlee owns da-jlee)"
     },
     {
       "triple": ["okta_user", "owns", "local_acct"],

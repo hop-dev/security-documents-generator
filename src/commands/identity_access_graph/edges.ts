@@ -181,7 +181,7 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
         return src.host ? [`host:${src.host.id}`] : [];
       return nodesOf(src.slot as number)
         .filter((n) => n.type === r.to && n.entityId !== src.entityId)
-        .filter((n) => !(r.from === 'ad_acct' && r.to === 'ad_acct') || (!src.email && n.email))
+        .filter((n) => !(r.from === 'ad_acct' && r.to === 'ad_acct') || (src.email && !n.email))
         .map((n) => n.entityId);
     };
     const via = (steps: Array<{ kind: string }>): Target[] => {
