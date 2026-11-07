@@ -1,0 +1,247 @@
+{
+  "name": "ad-choke-points",
+  "description": "Example 3 (AD choke points). 20 users can reach Domain Admins. The 14 in IT-Helpdesk get there through Workstation-Admins (nested), local admin on ACME-WS-0193 and da-jlee's credentials left there; the 6 in Server-Admins through ACME-JUMP-01, where da-jlee also left credentials, and through ACME-SYNC-01, which stores the MSOL_ directory sync account's credentials, and MSOL_ can replicate Domain Admins. So removing da-jlee's membership cuts off 14 of 20 (70%); the 6 keep the MSOL_ bypass. jlee owns da-jlee: ownership is context, not a way in. Reduced: the example's 1,811 workstations with no admin logons are 5 here (ACME-WS-0001 to 0005), and its aggregated members are listed by name.",
+  "nodes": [
+    {
+      "id": "tnguyen",
+      "type": "ad_acct",
+      "name": "tnguyen",
+      "email": "tnguyen@acme.com"
+    },
+    {
+      "id": "amorales",
+      "type": "ad_acct",
+      "name": "amorales",
+      "email": "amorales@acme.com"
+    },
+    {
+      "id": "bkim",
+      "type": "ad_acct",
+      "name": "bkim",
+      "email": "bkim@acme.com"
+    },
+    {
+      "id": "cwright",
+      "type": "ad_acct",
+      "name": "cwright",
+      "email": "cwright@acme.com"
+    },
+    {
+      "id": "dpatel",
+      "type": "ad_acct",
+      "name": "dpatel",
+      "email": "dpatel@acme.com"
+    },
+    {
+      "id": "eokafor",
+      "type": "ad_acct",
+      "name": "eokafor",
+      "email": "eokafor@acme.com"
+    },
+    {
+      "id": "fsilva",
+      "type": "ad_acct",
+      "name": "fsilva",
+      "email": "fsilva@acme.com"
+    },
+    {
+      "id": "gchen",
+      "type": "ad_acct",
+      "name": "gchen",
+      "email": "gchen@acme.com"
+    },
+    {
+      "id": "hjohansson",
+      "type": "ad_acct",
+      "name": "hjohansson",
+      "email": "hjohansson@acme.com"
+    },
+    {
+      "id": "iabdi",
+      "type": "ad_acct",
+      "name": "iabdi",
+      "email": "iabdi@acme.com"
+    },
+    {
+      "id": "jrossi",
+      "type": "ad_acct",
+      "name": "jrossi",
+      "email": "jrossi@acme.com"
+    },
+    {
+      "id": "kmurphy",
+      "type": "ad_acct",
+      "name": "kmurphy",
+      "email": "kmurphy@acme.com"
+    },
+    {
+      "id": "lnakamura",
+      "type": "ad_acct",
+      "name": "lnakamura",
+      "email": "lnakamura@acme.com"
+    },
+    {
+      "id": "mgarcia",
+      "type": "ad_acct",
+      "name": "mgarcia",
+      "email": "mgarcia@acme.com"
+    },
+    {
+      "id": "nlarsen",
+      "type": "ad_acct",
+      "name": "nlarsen",
+      "email": "nlarsen@acme.com"
+    },
+    {
+      "id": "opetrov",
+      "type": "ad_acct",
+      "name": "opetrov",
+      "email": "opetrov@acme.com"
+    },
+    {
+      "id": "pwilliams",
+      "type": "ad_acct",
+      "name": "pwilliams",
+      "email": "pwilliams@acme.com"
+    },
+    {
+      "id": "qhassan",
+      "type": "ad_acct",
+      "name": "qhassan",
+      "email": "qhassan@acme.com"
+    },
+    {
+      "id": "rlopez",
+      "type": "ad_acct",
+      "name": "rlopez",
+      "email": "rlopez@acme.com"
+    },
+    {
+      "id": "sbecker",
+      "type": "ad_acct",
+      "name": "sbecker",
+      "email": "sbecker@acme.com"
+    },
+    {
+      "id": "helpdesk",
+      "type": "ad_group",
+      "name": "IT-Helpdesk"
+    },
+    {
+      "id": "server_admins",
+      "type": "ad_group",
+      "name": "Server-Admins"
+    },
+    {
+      "id": "ws_admins",
+      "type": "ad_group",
+      "name": "Workstation-Admins"
+    },
+    {
+      "id": "acme_ws_0193",
+      "type": "host",
+      "name": "ACME-WS-0193"
+    },
+    {
+      "id": "acme_ws_0001",
+      "type": "host",
+      "name": "ACME-WS-0001"
+    },
+    {
+      "id": "acme_ws_0002",
+      "type": "host",
+      "name": "ACME-WS-0002"
+    },
+    {
+      "id": "acme_ws_0003",
+      "type": "host",
+      "name": "ACME-WS-0003"
+    },
+    {
+      "id": "acme_ws_0004",
+      "type": "host",
+      "name": "ACME-WS-0004"
+    },
+    {
+      "id": "acme_ws_0005",
+      "type": "host",
+      "name": "ACME-WS-0005"
+    },
+    {
+      "id": "jump01",
+      "type": "host",
+      "name": "ACME-JUMP-01"
+    },
+    {
+      "id": "sync01",
+      "type": "host",
+      "name": "ACME-SYNC-01"
+    },
+    {
+      "id": "jlee",
+      "type": "ad_acct",
+      "name": "jlee",
+      "email": "jlee@acme.com"
+    },
+    {
+      "id": "da_jlee",
+      "type": "ad_acct",
+      "name": "da-jlee"
+    },
+    {
+      "id": "msol",
+      "type": "ad_acct",
+      "name": "MSOL_8f2c41e0"
+    },
+    {
+      "id": "domain_admins",
+      "type": "ad_group",
+      "name": "Domain Admins",
+      "criticality": "extreme_impact"
+    }
+  ],
+  "edges": [
+    ["tnguyen", "member of", "helpdesk"],
+    ["amorales", "member of", "helpdesk"],
+    ["bkim", "member of", "helpdesk"],
+    ["cwright", "member of", "helpdesk"],
+    ["dpatel", "member of", "helpdesk"],
+    ["eokafor", "member of", "helpdesk"],
+    ["fsilva", "member of", "helpdesk"],
+    ["gchen", "member of", "helpdesk"],
+    ["hjohansson", "member of", "helpdesk"],
+    ["iabdi", "member of", "helpdesk"],
+    ["jrossi", "member of", "helpdesk"],
+    ["kmurphy", "member of", "helpdesk"],
+    ["lnakamura", "member of", "helpdesk"],
+    ["mgarcia", "member of", "helpdesk"],
+    ["nlarsen", "member of", "server_admins"],
+    ["opetrov", "member of", "server_admins"],
+    ["pwilliams", "member of", "server_admins"],
+    ["qhassan", "member of", "server_admins"],
+    ["rlopez", "member of", "server_admins"],
+    ["sbecker", "member of", "server_admins"],
+    ["helpdesk", "nested in", "ws_admins"],
+    ["ws_admins", "local admin", "acme_ws_0193"],
+    ["ws_admins", "local admin", "acme_ws_0001"],
+    ["ws_admins", "local admin", "acme_ws_0002"],
+    ["ws_admins", "local admin", "acme_ws_0003"],
+    ["ws_admins", "local admin", "acme_ws_0004"],
+    ["ws_admins", "local admin", "acme_ws_0005"],
+    [
+      "acme_ws_0193",
+      "credentials left",
+      "da_jlee",
+      {
+        "last_seen": "-2d"
+      }
+    ],
+    ["server_admins", "local admin", "jump01"],
+    ["jump01", "credentials left", "da_jlee"],
+    ["da_jlee", "member of", "domain_admins"],
+    ["server_admins", "local admin", "sync01"],
+    ["sync01", "stores credentials", "msol"],
+    ["msol", "can replicate", "domain_admins"],
+    ["jlee", "owns", "da_jlee"]
+  ]
+}

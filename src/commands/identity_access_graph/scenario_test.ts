@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadScenario, readBundledScenario } from './scenario.ts';
+import { loadScenario, readBundledScenario, type EdgeDoc } from './scenario.ts';
 
 const NOW = new Date('2026-11-05T00:00:00.000Z');
 const opts = { seed: 42, now: NOW };
@@ -255,4 +255,43 @@ test('a company node as an edge source fails alone too, not only when planted', 
     () => loadScenario(withEdges([['@Everyone', 'SSO to role', 'r_oncall']]), opts),
     /a company node \(@Everyone\) can only be an edge target/,
   );
+});
+
+/** Breadth-first reach over a loaded scenario's edges, optionally avoiding one node. */
+const reachesIn = (edges: EdgeDoc[], from: string, to: string, avoid?: string) => {
+  const seen = new Set([from]);
+  let frontier = [from];
+  while (frontier.length) {
+    const next = edges
+      .filter((e) => frontier.includes(e.src) && e.dst !== avoid && !seen.has(e.dst))
+      .map((e) => e.dst);
+    if (next.includes(to)) return true;
+    for (const n of next) seen.add(n);
+    frontier = [...new Set(next)];
+  }
+  return false;
+};
+
+test('ad-choke-points is example 3: da-jlee cuts off 14 of 20 users, MSOL_ keeps 6', () => {
+  const s = loadScenario(readBundledScenario('ad-choke-points'), opts);
+  const id = (local: string) => s.nodes.find((n) => n.localId === local)?.entityId as string;
+  const da = id('domain_admins');
+  const daJlee = id('da_jlee');
+  const helpdesk = s.edges.filter((e) => e.dst === id('helpdesk') && e.kind === 'member_of');
+  const serverAdmins = s.edges.filter(
+    (e) => e.dst === id('server_admins') && e.kind === 'member_of',
+  );
+  assert.equal(helpdesk.length, 14);
+  assert.equal(serverAdmins.length, 6);
+  for (const e of helpdesk) {
+    assert.ok(reachesIn(s.edges, e.src, da), `${e.src} reaches Domain Admins`);
+    assert.ok(!reachesIn(s.edges, e.src, da, daJlee), `${e.src} needs da-jlee`);
+  }
+  for (const e of serverAdmins) {
+    assert.ok(reachesIn(s.edges, e.src, da, daJlee), `${e.src} has the MSOL_ bypass`);
+  }
+  // jlee owns da-jlee, and ownership is context: it isn't a way in.
+  assert.ok(s.edges.some((e) => e.src === id('jlee') && e.kind === 'owns' && e.dst === daJlee));
+  assert.equal(s.nodes.find((n) => n.localId === 'domain_admins')?.criticality, 'extreme_impact');
+  assert.ok(s.description.length > 0);
 });

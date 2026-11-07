@@ -46,7 +46,8 @@ Load one scenario alone, with no company around it.
 
 ```bash
 yarn start load-identity-access-scenario stolen-okta-session --seed 42
-yarn start load-identity-access-scenario ./my-scenario.json --seed 43
+yarn start load-identity-access-scenario ad-choke-points --seed 43
+yarn start load-identity-access-scenario ./my-scenario.json --seed 44
 ```
 
 - `<scenario>`: a bundled scenario name, or a path to a `.json` file
@@ -191,7 +192,10 @@ Some patterns come from the edge rates instead and need no entry: ownership (`ow
 
 ## Scenarios
 
-A scenario is a small hand-written graph. Bundled: [`stolen-okta-session`](scenarios/stolen-okta-session.json) (18 nodes, 19 edges: an Okta user reaching three crown jewels through groups, roles, a secret, a server and a Domain Admin's leftover credentials).
+A scenario is a small hand-written graph. Bundled:
+
+- [`stolen-okta-session`](scenarios/stolen-okta-session.json) (18 nodes, 19 edges): an Okta user reaching three crown jewels through groups, roles, a secret, a server and a Domain Admin's leftover credentials.
+- [`ad-choke-points`](scenarios/ad-choke-points.json) (35 nodes, 35 edges): 20 users reach Domain Admins; one admin account's leftover credentials carry 14 of them (70%), and the other 6 keep a path through the directory sync account (`MSOL_`).
 
 ```json
 {
