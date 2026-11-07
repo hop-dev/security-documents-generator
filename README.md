@@ -13,6 +13,7 @@ Generate synthetic Security data for Elasticsearch and Kibana development, demos
 - Risk engine datasets and ingest loads
 - Cloud Security Posture (Elastic + third-party sources)
 - Entity Store performance data + baseline comparison reports
+- Identity access graphs: a random company or hand-written scenarios, with an edges index
 
 ## Requirements
 
@@ -140,6 +141,18 @@ yarn start privmon-quick --space default
 yarn start csp --data-sources all --findings-count 50
 ```
 
+### Identity Access Graph
+
+A random company (default profile, 1,000 employees) and a hand-written scenario, each under its own seed:
+
+```bash
+yarn start identity-graph --seed 7
+yarn start load-identity-access-scenario stolen-okta-session --seed 42
+yarn start clean-identity-access-graph --seed 7
+```
+
+See `src/commands/identity_access_graph/README.md` for profiles, scenarios and the edges index.
+
 ### Correlated Organization Data
 
 Interactive — prompts for size, productivity suite, and detection rules:
@@ -232,6 +245,9 @@ Detailed command documentation is colocated with command code under `src/command
 | `generate-cloud-security-posture` (`csp`)                        | Generate CSP findings across sources                                                | `src/commands/generate_cloud_security_posture/README.md` |
 | `generate-correlated-organization-data` (`org-data`)             | Generate correlated organization security integration data                          | `src/commands/org_data/`                                 |
 | `generate-correlated-organization-data-quick` (`org-data-quick`) | Quick correlated organization data generation with defaults                         | `src/commands/org_data/`                                 |
+| `generate-identity-access-graph` (`identity-graph`)              | Generate a random company identity access graph from a profile                      | `src/commands/identity_access_graph/README.md`           |
+| `load-identity-access-scenario`                                  | Load a hand-written identity access scenario                                        | `src/commands/identity_access_graph/README.md`           |
+| `clean-identity-access-graph`                                    | Delete one identity access graph run by seed                                        | `src/commands/identity_access_graph/README.md`           |
 
 ### Quick command list
 
@@ -257,6 +273,8 @@ Detailed command documentation is colocated with command code under `src/command
   - `generate-correlated-organization-data` (`org-data`), `generate-correlated-organization-data-quick` (`org-data-quick`)
 - **Threat hunting leads**
   - `leads`
+- **Identity Access Graph**
+  - `generate-identity-access-graph` (`identity-graph`), `load-identity-access-scenario`, `clean-identity-access-graph`
 
 ## AI assistant skills
 
