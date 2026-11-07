@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { backbone, CHUNK_SIZE, chunkCount, employee, employeeChunk } from './company.ts';
 import { loadProfile, readBundledProfile } from './profile.ts';
 import { DEPARTMENTS } from '../org_data/data/departments.ts';
+import { hasEntitySource } from './documents.ts';
+import { NODE_TYPES } from './triples.ts';
 
 const base = readBundledProfile('default') as Record<string, unknown>;
 const profile = (employees: number, over: Record<string, unknown> = {}) =>
@@ -114,17 +116,11 @@ test('every node id in the company is unique', () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('a node type without an id rule fails before anything is built', () => {
-  const p = profile(100, { per_employee: { okta_user: 1, gh_user: 0.3 } });
-  assert.throws(() => backbone(p), /per_employee\.gh_user: no id rule yet for node type gh_user/);
-});
-
 test('Okta users and AD accounts are one per employee at most', () => {
   const p = profile(100, { per_employee: { okta_user: 2 } });
   assert.throws(() => backbone(p), /per_employee\.okta_user: at most 1/);
 });
 
-test('a node type Kibana has no entity.source for fails before anything is built', () => {
-  const p = profile(100, { per_employee: { okta_user: 1, repo: 0.05 } });
-  assert.throws(() => backbone(p), /per_employee\.repo: no entity\.source yet for node type repo/);
+test('every node type has an entity.source, so any per_employee type can be built', () => {
+  for (const type of NODE_TYPES) assert.ok(hasEntitySource(type), type);
 });

@@ -295,3 +295,45 @@ test('ad-choke-points is example 3: da-jlee cuts off 14 of 20 users, MSOL_ keeps
   assert.equal(s.nodes.find((n) => n.localId === 'domain_admins')?.criticality, 'extreme_impact');
   assert.ok(s.description.length > 0);
 });
+
+test('a compute node takes service lambda or ec2; anything else fails', () => {
+  const bad = {
+    ...base,
+    nodes: [{ id: 'x', type: 'compute', name: 'x', service: 'fargate' }],
+    edges: [],
+  };
+  assert.throws(
+    () => loadScenario(bad, opts),
+    /node "x": service "fargate" is not one of ec2, lambda/,
+  );
+  const onRole = {
+    ...base,
+    nodes: [{ id: 'x', type: 'role', name: 'x', service: 'lambda' }],
+    edges: [],
+  };
+  assert.throws(() => loadScenario(onRole, opts), /node "x": only a compute node has a service/);
+});
+
+test('customer-data-bucket is example 2: reading the bucket needs the key too', () => {
+  const s = loadScenario(readBundledScenario('customer-data-bucket'), opts);
+  const id = (local: string) => s.nodes.find((n) => n.localId === local)?.entityId as string;
+  const bucket = id('bucket');
+  const key = id('key');
+  // Key access comes from decrypt grants; `encrypted with` only says which key the bucket uses.
+  const grants = s.edges.filter((e) => e.kind !== 'encrypted_with');
+  const hasKey = (from: string) => reachesIn(grants, from, key);
+  const people = s.nodes.filter((n) => ['okta_user', 'gh_user'].includes(n.type));
+  const readers = people.filter(
+    (n) => reachesIn(s.edges, n.entityId, bucket) && hasKey(n.entityId),
+  );
+  // 31 in eng-oncall, carol in data-science, 12 GitHub engineers.
+  assert.equal(people.length, 44);
+  assert.equal(readers.length, 44);
+  // The two IAM service users reach the bucket by policy but hold no key grant: they can't read it.
+  for (const svc of ['svc_rep', 'svc_etl']) {
+    assert.ok(reachesIn(s.edges, id(svc), bucket), `${svc} reaches the bucket`);
+    assert.ok(!hasKey(id(svc)), `${svc} has no key`);
+  }
+  assert.ok(reachesIn(s.edges, id('ext'), bucket) && hasKey(id('ext')), 'vendor reads');
+  assert.equal(s.nodes.find((n) => n.localId === 'bucket')?.criticality, 'extreme_impact');
+});

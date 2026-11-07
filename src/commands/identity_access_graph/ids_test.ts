@@ -9,6 +9,7 @@ import {
   nodeName,
   seededDomain,
 } from './ids.ts';
+import { NODE_TYPES } from './triples.ts';
 
 test('the seed goes into the company domain', () => {
   assert.equal(seededDomain('acme.com', 42), 'acme-s42.com');
@@ -49,8 +50,11 @@ test('an Okta user needs an email: its id is built from it', () => {
   assert.throws(() => entityId({ type: 'okta_user', name: 'alice' }, 42), /okta_user.*email/);
 });
 
-test('node types without an agreed id rule fail loudly', () => {
-  assert.throws(() => entityId({ type: 'gh_user', name: 'bob' }, 42), /no id rule.*gh_user/);
+test('every node type has an id rule', () => {
+  for (const type of NODE_TYPES) {
+    const id = entityId({ type, name: 'x', email: 'x@acme.com', hostId: 'h' }, 42);
+    assert.ok(id.length > 0, type);
+  }
 });
 
 test('a host id is a UUID derived from (seed, name), like an agent id', () => {
@@ -131,4 +135,26 @@ test('a KMS key id is a UUID from (seed, name), in the run account', () => {
     /^arn:aws:kms:us-east-1:000000000042:key\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
   );
   assert.notEqual(entityId({ type: 'key', name: 'other-key' }, 42), id);
+});
+
+test('GitHub, IAM group, access point and Lambda ids carry the seed', () => {
+  assert.equal(entityId({ type: 'gh_user', name: 'octo-dev' }, 42), 'user:octo-dev-s42@github');
+  assert.equal(nodeName({ type: 'gh_user', name: 'octo-dev' }, 42), 'octo-dev-s42');
+  assert.equal(
+    entityId({ type: 'gh_team', name: 'data-eng' }, 42),
+    'group:data-eng@acme-s42.com@github',
+  );
+  assert.equal(
+    entityId({ type: 'iam_group', name: 'etl-writers' }, 42),
+    'group:etl-writers@acme-s42.com@aws',
+  );
+  assert.equal(
+    entityId({ type: 'ap', name: 'analytics-ap' }, 42),
+    'arn:aws:s3:us-east-1:000000000042:accesspoint/analytics-ap',
+  );
+  assert.equal(
+    entityId({ type: 'compute', name: 'nightly-export', service: 'lambda' }, 42),
+    'arn:aws:lambda:us-east-1:000000000042:function:nightly-export',
+  );
+  assert.match(entityId({ type: 'compute', name: 'etl-server-01' }, 42), /:instance\/i-/);
 });

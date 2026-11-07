@@ -41,7 +41,9 @@ const NODE_INFO: Record<NodeType, NodeInfo> = {
     namespace: 'aws',
     source: 'cloud_asset_inventory.asset_inventory',
   },
-  gh_user: { display: 'Identity', definition: 'user', namespace: 'github' },
+  // GitHub: a stand-in source. Kibana has no GitHub entity source yet; `github` is the name of
+  // Elastic's GitHub integration (ENTITY-STORE-CHANGES item 7).
+  gh_user: { display: 'Identity', definition: 'user', namespace: 'github', source: 'github' },
   host: { display: 'Host', definition: 'host', source: 'endpoint' },
   okta_group: { display: 'Group', definition: 'generic', source: 'entityanalytics_okta' },
   ad_group: { display: 'Group', definition: 'generic', source: 'entityanalytics_ad' },
@@ -50,7 +52,7 @@ const NODE_INFO: Record<NodeType, NodeInfo> = {
     definition: 'generic',
     source: 'cloud_asset_inventory.asset_inventory',
   },
-  gh_team: { display: 'Group', definition: 'generic' },
+  gh_team: { display: 'Group', definition: 'generic', source: 'github' },
   role: {
     display: 'Access Management',
     definition: 'generic',
@@ -91,7 +93,7 @@ const NODE_INFO: Record<NodeType, NodeInfo> = {
     definition: 'generic',
     source: 'cloud_asset_inventory.asset_inventory',
   },
-  repo: { display: 'Repository', definition: 'generic' },
+  repo: { display: 'Repository', definition: 'generic', source: 'github' },
   saas: {
     display: 'Application (Desktop or Web App)',
     definition: 'generic',
@@ -211,7 +213,7 @@ export const buildDocuments = (
         id: node.entityId,
         // Kibana names a local account after its host too: alice@alice-mbp.
         name: node.type === 'local_acct' ? `${node.name}@${node.host?.name}` : node.name,
-        type: info.display,
+        type: node.type === 'compute' && node.service === 'lambda' ? 'FaaS' : info.display,
         sub_type: node.type,
         ...(info.namespace && { namespace: info.namespace }),
         source: info.source,

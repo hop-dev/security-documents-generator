@@ -48,14 +48,18 @@ export interface IdInput {
   email?: string;
   /** For a local account: its host's UUID. */
   hostId?: string;
+  /** For a compute node: an EC2 instance (default) or a Lambda function. */
+  service?: 'ec2' | 'lambda';
 }
 
 /**
- * The name a node is stored under. Only an AD account without an email changes: Kibana
- * builds its id from the name alone, so the name carries the seed (like bucket names).
+ * The name a node is stored under. An AD account without an email and a GitHub login change:
+ * the id is built from the name alone, so the name carries the seed (like bucket names).
  */
 export const nodeName = (node: Pick<IdInput, 'type' | 'name' | 'email'>, seed: number): string =>
-  node.type === 'ad_acct' && !node.email ? `${node.name}-s${seed}` : node.name;
+  (node.type === 'ad_acct' && !node.email) || node.type === 'gh_user'
+    ? `${node.name}-s${seed}`
+    : node.name;
 
 /** The Entity Store `entity.id` for a node (SPEC.md section 2), with the seed in it. */
 export const entityId = (node: IdInput, seed: number): string => {
@@ -100,8 +104,19 @@ export const entityId = (node: IdInput, seed: number): string => {
     // A Redshift cluster: the only database the scenarios use so far.
     case 'db':
       return `arn:aws:redshift:${AWS_REGION}:${awsAccountId(seed)}:cluster:${node.name}`;
-    // An EC2 instance (Lambda gets its own rule when a scenario needs one).
+    // An EC2 instance, or a Lambda function with service: lambda.
+    case 'gh_user':
+      return `user:${nodeName(node, seed)}@github`;
+    case 'gh_team':
+      return `group:${node.name}@${seededDomain(COMPANY_DOMAIN, seed)}@github`;
+    case 'iam_group':
+      return `group:${node.name}@${seededDomain(COMPANY_DOMAIN, seed)}@aws`;
+    case 'ap':
+      return `arn:aws:s3:${AWS_REGION}:${awsAccountId(seed)}:accesspoint/${node.name}`;
     case 'compute': {
+      if (node.service === 'lambda') {
+        return `arn:aws:lambda:${AWS_REGION}:${awsAccountId(seed)}:function:${node.name}`;
+      }
       const h = createHash('sha256').update(`${seed}|${node.name}`).digest('hex');
       return `arn:aws:ec2:${AWS_REGION}:${awsAccountId(seed)}:instance/i-${h.slice(0, 17)}`;
     }

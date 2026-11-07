@@ -1,0 +1,425 @@
+{
+  "name": "customer-data-bucket",
+  "description": "Example 2 (who can read the customer data bucket). Reading acme-customer-pii takes bucket access and the pii-key together. 44 people can: the 31 in eng-oncall (OncallRole, then DataAdminRole or BreakGlassRole), carol in data-science (AnalystRole through the analytics-ap access point), and 12 GitHub engineers in data-eng (they can push to etl-pipeline, whose OIDC trust gives DeployRole, which can update the nightly-export Lambda that runs as etl-lambda-role). The vendor account can too, through VendorSyncRole. svc-reporting (through the etl-writers group) and svc-etl reach the bucket by policy but hold no key grant, so they can't read it. Key access comes from decrypt grants: 'encrypted with' only says which key the bucket uses. Reduced: the example's aggregated members are listed by name. GitHub nodes use the stand-in entity.source github (Kibana has no GitHub entity source).",
+  "nodes": [
+    {
+      "id": "alice",
+      "type": "okta_user",
+      "name": "alice",
+      "email": "alice@acme.com"
+    },
+    {
+      "id": "bob",
+      "type": "okta_user",
+      "name": "bob",
+      "email": "bob@acme.com"
+    },
+    {
+      "id": "oncall03",
+      "type": "okta_user",
+      "name": "oncall03",
+      "email": "oncall03@acme.com"
+    },
+    {
+      "id": "oncall04",
+      "type": "okta_user",
+      "name": "oncall04",
+      "email": "oncall04@acme.com"
+    },
+    {
+      "id": "oncall05",
+      "type": "okta_user",
+      "name": "oncall05",
+      "email": "oncall05@acme.com"
+    },
+    {
+      "id": "oncall06",
+      "type": "okta_user",
+      "name": "oncall06",
+      "email": "oncall06@acme.com"
+    },
+    {
+      "id": "oncall07",
+      "type": "okta_user",
+      "name": "oncall07",
+      "email": "oncall07@acme.com"
+    },
+    {
+      "id": "oncall08",
+      "type": "okta_user",
+      "name": "oncall08",
+      "email": "oncall08@acme.com"
+    },
+    {
+      "id": "oncall09",
+      "type": "okta_user",
+      "name": "oncall09",
+      "email": "oncall09@acme.com"
+    },
+    {
+      "id": "oncall10",
+      "type": "okta_user",
+      "name": "oncall10",
+      "email": "oncall10@acme.com"
+    },
+    {
+      "id": "oncall11",
+      "type": "okta_user",
+      "name": "oncall11",
+      "email": "oncall11@acme.com"
+    },
+    {
+      "id": "oncall12",
+      "type": "okta_user",
+      "name": "oncall12",
+      "email": "oncall12@acme.com"
+    },
+    {
+      "id": "oncall13",
+      "type": "okta_user",
+      "name": "oncall13",
+      "email": "oncall13@acme.com"
+    },
+    {
+      "id": "oncall14",
+      "type": "okta_user",
+      "name": "oncall14",
+      "email": "oncall14@acme.com"
+    },
+    {
+      "id": "oncall15",
+      "type": "okta_user",
+      "name": "oncall15",
+      "email": "oncall15@acme.com"
+    },
+    {
+      "id": "oncall16",
+      "type": "okta_user",
+      "name": "oncall16",
+      "email": "oncall16@acme.com"
+    },
+    {
+      "id": "oncall17",
+      "type": "okta_user",
+      "name": "oncall17",
+      "email": "oncall17@acme.com"
+    },
+    {
+      "id": "oncall18",
+      "type": "okta_user",
+      "name": "oncall18",
+      "email": "oncall18@acme.com"
+    },
+    {
+      "id": "oncall19",
+      "type": "okta_user",
+      "name": "oncall19",
+      "email": "oncall19@acme.com"
+    },
+    {
+      "id": "oncall20",
+      "type": "okta_user",
+      "name": "oncall20",
+      "email": "oncall20@acme.com"
+    },
+    {
+      "id": "oncall21",
+      "type": "okta_user",
+      "name": "oncall21",
+      "email": "oncall21@acme.com"
+    },
+    {
+      "id": "oncall22",
+      "type": "okta_user",
+      "name": "oncall22",
+      "email": "oncall22@acme.com"
+    },
+    {
+      "id": "oncall23",
+      "type": "okta_user",
+      "name": "oncall23",
+      "email": "oncall23@acme.com"
+    },
+    {
+      "id": "oncall24",
+      "type": "okta_user",
+      "name": "oncall24",
+      "email": "oncall24@acme.com"
+    },
+    {
+      "id": "oncall25",
+      "type": "okta_user",
+      "name": "oncall25",
+      "email": "oncall25@acme.com"
+    },
+    {
+      "id": "oncall26",
+      "type": "okta_user",
+      "name": "oncall26",
+      "email": "oncall26@acme.com"
+    },
+    {
+      "id": "oncall27",
+      "type": "okta_user",
+      "name": "oncall27",
+      "email": "oncall27@acme.com"
+    },
+    {
+      "id": "oncall28",
+      "type": "okta_user",
+      "name": "oncall28",
+      "email": "oncall28@acme.com"
+    },
+    {
+      "id": "oncall29",
+      "type": "okta_user",
+      "name": "oncall29",
+      "email": "oncall29@acme.com"
+    },
+    {
+      "id": "oncall30",
+      "type": "okta_user",
+      "name": "oncall30",
+      "email": "oncall30@acme.com"
+    },
+    {
+      "id": "oncall31",
+      "type": "okta_user",
+      "name": "oncall31",
+      "email": "oncall31@acme.com"
+    },
+    {
+      "id": "carol",
+      "type": "okta_user",
+      "name": "carol",
+      "email": "carol@acme.com"
+    },
+    {
+      "id": "acme-dev01",
+      "type": "gh_user",
+      "name": "acme-dev01"
+    },
+    {
+      "id": "acme-dev02",
+      "type": "gh_user",
+      "name": "acme-dev02"
+    },
+    {
+      "id": "acme-dev03",
+      "type": "gh_user",
+      "name": "acme-dev03"
+    },
+    {
+      "id": "acme-dev04",
+      "type": "gh_user",
+      "name": "acme-dev04"
+    },
+    {
+      "id": "acme-dev05",
+      "type": "gh_user",
+      "name": "acme-dev05"
+    },
+    {
+      "id": "acme-dev06",
+      "type": "gh_user",
+      "name": "acme-dev06"
+    },
+    {
+      "id": "acme-dev07",
+      "type": "gh_user",
+      "name": "acme-dev07"
+    },
+    {
+      "id": "acme-dev08",
+      "type": "gh_user",
+      "name": "acme-dev08"
+    },
+    {
+      "id": "acme-dev09",
+      "type": "gh_user",
+      "name": "acme-dev09"
+    },
+    {
+      "id": "acme-dev10",
+      "type": "gh_user",
+      "name": "acme-dev10"
+    },
+    {
+      "id": "acme-dev11",
+      "type": "gh_user",
+      "name": "acme-dev11"
+    },
+    {
+      "id": "acme-dev12",
+      "type": "gh_user",
+      "name": "acme-dev12"
+    },
+    {
+      "id": "ext",
+      "type": "ext_acct",
+      "name": "Vendor 9999-8888-7777"
+    },
+    {
+      "id": "svc_rep",
+      "type": "iam_user",
+      "name": "svc-reporting"
+    },
+    {
+      "id": "svc_etl",
+      "type": "iam_user",
+      "name": "svc-etl"
+    },
+    {
+      "id": "g_oncall",
+      "type": "okta_group",
+      "name": "eng-oncall"
+    },
+    {
+      "id": "g_ds",
+      "type": "okta_group",
+      "name": "data-science"
+    },
+    {
+      "id": "team",
+      "type": "gh_team",
+      "name": "data-eng"
+    },
+    {
+      "id": "iam_grp",
+      "type": "iam_group",
+      "name": "etl-writers"
+    },
+    {
+      "id": "r_oncall",
+      "type": "role",
+      "name": "OncallRole"
+    },
+    {
+      "id": "r_analyst",
+      "type": "role",
+      "name": "AnalystRole"
+    },
+    {
+      "id": "r_vendor",
+      "type": "role",
+      "name": "VendorSyncRole"
+    },
+    {
+      "id": "r_deploy",
+      "type": "role",
+      "name": "DeployRole"
+    },
+    {
+      "id": "r_admin",
+      "type": "role",
+      "name": "DataAdminRole"
+    },
+    {
+      "id": "r_break",
+      "type": "role",
+      "name": "BreakGlassRole"
+    },
+    {
+      "id": "r_lambda",
+      "type": "role",
+      "name": "etl-lambda-role"
+    },
+    {
+      "id": "repo",
+      "type": "repo",
+      "name": "etl-pipeline"
+    },
+    {
+      "id": "ap",
+      "type": "ap",
+      "name": "analytics-ap"
+    },
+    {
+      "id": "lambda",
+      "type": "compute",
+      "name": "nightly-export",
+      "service": "lambda"
+    },
+    {
+      "id": "bucket",
+      "type": "bucket",
+      "name": "acme-customer-pii",
+      "criticality": "extreme_impact"
+    },
+    {
+      "id": "key",
+      "type": "key",
+      "name": "pii-key"
+    }
+  ],
+  "edges": [
+    ["alice", "member of", "g_oncall"],
+    ["bob", "member of", "g_oncall"],
+    ["oncall03", "member of", "g_oncall"],
+    ["oncall04", "member of", "g_oncall"],
+    ["oncall05", "member of", "g_oncall"],
+    ["oncall06", "member of", "g_oncall"],
+    ["oncall07", "member of", "g_oncall"],
+    ["oncall08", "member of", "g_oncall"],
+    ["oncall09", "member of", "g_oncall"],
+    ["oncall10", "member of", "g_oncall"],
+    ["oncall11", "member of", "g_oncall"],
+    ["oncall12", "member of", "g_oncall"],
+    ["oncall13", "member of", "g_oncall"],
+    ["oncall14", "member of", "g_oncall"],
+    ["oncall15", "member of", "g_oncall"],
+    ["oncall16", "member of", "g_oncall"],
+    ["oncall17", "member of", "g_oncall"],
+    ["oncall18", "member of", "g_oncall"],
+    ["oncall19", "member of", "g_oncall"],
+    ["oncall20", "member of", "g_oncall"],
+    ["oncall21", "member of", "g_oncall"],
+    ["oncall22", "member of", "g_oncall"],
+    ["oncall23", "member of", "g_oncall"],
+    ["oncall24", "member of", "g_oncall"],
+    ["oncall25", "member of", "g_oncall"],
+    ["oncall26", "member of", "g_oncall"],
+    ["oncall27", "member of", "g_oncall"],
+    ["oncall28", "member of", "g_oncall"],
+    ["oncall29", "member of", "g_oncall"],
+    ["oncall30", "member of", "g_oncall"],
+    ["oncall31", "member of", "g_oncall"],
+    ["carol", "member of", "g_ds"],
+    ["acme-dev01", "member of", "team"],
+    ["acme-dev02", "member of", "team"],
+    ["acme-dev03", "member of", "team"],
+    ["acme-dev04", "member of", "team"],
+    ["acme-dev05", "member of", "team"],
+    ["acme-dev06", "member of", "team"],
+    ["acme-dev07", "member of", "team"],
+    ["acme-dev08", "member of", "team"],
+    ["acme-dev09", "member of", "team"],
+    ["acme-dev10", "member of", "team"],
+    ["acme-dev11", "member of", "team"],
+    ["acme-dev12", "member of", "team"],
+    ["svc_rep", "member of", "iam_grp"],
+    ["g_oncall", "SSO to role", "r_oncall"],
+    ["g_ds", "SSO to role", "r_analyst"],
+    ["team", "can push", "repo"],
+    ["ext", "external trust", "r_vendor"],
+    ["r_oncall", "can assume", "r_admin"],
+    ["r_oncall", "can assume", "r_break"],
+    ["repo", "OIDC trust", "r_deploy"],
+    ["r_deploy", "can control", "lambda"],
+    ["lambda", "runs as", "r_lambda"],
+    ["r_analyst", "access point policy", "ap"],
+    ["ap", "fronts", "bucket"],
+    ["r_admin", "bucket policy", "bucket"],
+    ["r_break", "bucket policy", "bucket"],
+    ["r_vendor", "bucket policy", "bucket"],
+    ["r_lambda", "role policy", "bucket"],
+    ["svc_etl", "user policy", "bucket"],
+    ["iam_grp", "group policy", "bucket"],
+    ["bucket", "encrypted with", "key"],
+    ["r_admin", "decrypt", "key"],
+    ["r_break", "decrypt", "key"],
+    ["r_analyst", "decrypt", "key"],
+    ["r_vendor", "decrypt", "key"],
+    ["r_lambda", "decrypt", "key"]
+  ]
+}

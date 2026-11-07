@@ -20,6 +20,8 @@ export interface ScenarioNode {
   blindSpot: boolean;
   /** A host itself, or a local account's host: the UUID and the readable name. */
   host?: { id: string; name: string };
+  /** A compute node's service: ec2 (default) or lambda. */
+  service?: 'ec2' | 'lambda';
 }
 
 export interface EdgeDoc {
@@ -84,6 +86,7 @@ interface ParsedNode {
   criticality?: Criticality;
   blindSpot: boolean;
   hostRef?: string;
+  service?: 'ec2' | 'lambda';
 }
 
 const parseNode = (raw: unknown, scenario: string): ParsedNode => {
@@ -104,6 +107,15 @@ const parseNode = (raw: unknown, scenario: string): ParsedNode => {
   if (raw.blind_spot !== undefined && typeof raw.blind_spot !== 'boolean') {
     fail(scenario, `node "${localId}": blind_spot must be true or false`);
   }
+  if (raw.service !== undefined && type !== 'compute') {
+    fail(scenario, `node "${localId}": only a compute node has a service`);
+  }
+  if (raw.service !== undefined && raw.service !== 'ec2' && raw.service !== 'lambda') {
+    fail(
+      scenario,
+      `node "${localId}": service ${JSON.stringify(raw.service)} is not one of ec2, lambda`,
+    );
+  }
   if (raw.host !== undefined && type !== 'local_acct') {
     fail(scenario, `node "${localId}": only a local_acct has a host`);
   }
@@ -118,6 +130,7 @@ const parseNode = (raw: unknown, scenario: string): ParsedNode => {
     criticality: criticality as Criticality | undefined,
     blindSpot: raw.blind_spot === true,
     hostRef: raw.host === undefined ? undefined : str(raw.host, `node "${localId}" host`, scenario),
+    service: raw.service as ParsedNode['service'],
   };
 };
 
@@ -138,7 +151,10 @@ const resolveNode = (
   }
   let id: string;
   try {
-    id = entityId({ type: n.type, name: n.name, email: n.email, hostId: host?.id }, seed);
+    id = entityId(
+      { type: n.type, name: n.name, email: n.email, hostId: host?.id, service: n.service },
+      seed,
+    );
   } catch (e) {
     return fail(scenario, `node "${n.localId}": ${(e as Error).message}`);
   }
@@ -151,6 +167,7 @@ const resolveNode = (
     criticality: n.criticality,
     blindSpot: n.blindSpot,
     ...(host && { host }),
+    ...(n.service && { service: n.service }),
   };
 };
 

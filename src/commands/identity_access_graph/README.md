@@ -47,7 +47,8 @@ Load one scenario alone, with no company around it.
 ```bash
 yarn start load-identity-access-scenario stolen-okta-session --seed 42
 yarn start load-identity-access-scenario ad-choke-points --seed 43
-yarn start load-identity-access-scenario ./my-scenario.json --seed 44
+yarn start load-identity-access-scenario customer-data-bucket --seed 44
+yarn start load-identity-access-scenario ./my-scenario.json --seed 45
 ```
 
 - `<scenario>`: a bundled scenario name, or a path to a `.json` file
@@ -85,7 +86,9 @@ One Entity Store document per node, written directly with `_bulk` (`update` + `d
 - `entity.namespace` for identities (`okta`, `active_directory`, `local`, `aws`), `entity.source`, `entity.name`, `@timestamp`, `entity.lifecycle`, `user.*` / `host.*` where they apply, and `asset.criticality` on crown jewels.
 - A copy of the node's outgoing edges as `entity.relationships.<kind>.ids` (resolution as `entity.relationships.resolution.resolved_to`), so Kibana's entity graph and flyouts show them. The copy is capped at `arrays_cap` ids per kind (default 1,000); a capped kind is listed in `labels.identity_graph_truncated_kinds`.
 
-Node types: `okta_user`, `okta_group`, `ad_acct`, `ad_group`, `local_acct`, `host`, `iam_user`, `role`, `bucket`, `key`, `secret`, `db` (a Redshift cluster), `compute` (an EC2 instance), `ext_acct` (an external AWS account), `saas` (an Okta app).
+Node types: `okta_user`, `okta_group`, `ad_acct`, `ad_group`, `local_acct`, `host`, `iam_user`, `iam_group`, `gh_user`, `gh_team`, `repo`, `role`, `bucket`, `key`, `secret`, `db` (a Redshift cluster), `ap` (an S3 access point), `compute` (an EC2 instance, or a Lambda function with `"service": "lambda"` in a scenario), `ext_acct` (an external AWS account), `saas` (an Okta app).
+
+GitHub nodes get `entity.source: github`, a stand-in: Kibana has no GitHub entity source yet, so this is the one value the generator writes that Kibana doesn't produce itself.
 
 ### Edges: `entities-edges-<space>`
 
@@ -195,6 +198,7 @@ Some patterns come from the edge rates instead and need no entry: ownership (`ow
 A scenario is a small hand-written graph. Bundled:
 
 - [`stolen-okta-session`](scenarios/stolen-okta-session.json) (18 nodes, 19 edges): an Okta user reaching three crown jewels through groups, roles, a secret, a server and a Domain Admin's leftover credentials.
+- [`customer-data-bucket`](scenarios/customer-data-bucket.json) (63 nodes, 68 edges): who can read a crown-jewel bucket. Reading it takes bucket access and a decrypt grant on its key together: 44 people and a vendor account can, through SSO roles, an access point and a GitHub → CI → Lambda chain; two service accounts reach the bucket but hold no key grant.
 - [`ad-choke-points`](scenarios/ad-choke-points.json) (35 nodes, 35 edges): 20 users reach Domain Admins; one admin account's leftover credentials carry 14 of them (70%), and the other 6 keep a path through the directory sync account (`MSOL_`).
 
 ```json
@@ -217,7 +221,7 @@ A scenario is a small hand-written graph. Bundled:
 }
 ```
 
-- **Node fields:** `id` (local to the file), `type`, `name`; optional `email` (resolution matches on it), `criticality` (`low_impact` … `extreme_impact`), `blind_spot` (not supported by the writer yet), and `host` (required on local accounts: the id of its host node).
+- **Node fields:** `id` (local to the file), `type`, `name`; optional `email` (resolution matches on it), `criticality` (`low_impact` … `extreme_impact`), `blind_spot` (not supported by the writer yet), `host` (required on local accounts: the id of its host node), and `service` (compute only: `ec2`, the default, or `lambda`).
 - **Edges:** `[from, kind, to]`, with an optional fourth element: `logons` (for `logs on`), `first_seen` / `last_seen` relative to the run (`"-3d"`). Every edge is checked against the allowed edges.
 - **`@` names** link to company nodes, as targets only. Planted with `--scenario`, they resolve to the company's node; loaded alone, those edges are skipped. Referencing a pathology node (e.g. `@chain-oncall`) switches that pathology on. Names: `@Everyone`, `@Domain Users`, `@Domain Admins`, `@Domain Computers`, `@Enterprise Admins`, `@okta:<department>`, `@ad:<department>`, and the pathology names above. Departments: `Product & Engineering`, `Sales & Marketing`, `Customer Success`, `Operations`, `Executive`.
 - **Scenario and company nodes never overlap.** A planted scenario can't create a node the company already has; the run stops before writing anything and names the node. Link to it with its `@` name instead. (`stolen-okta-session` defines its own `Domain Admins`, so it loads alone but isn't planted as is.)
@@ -232,6 +236,5 @@ IAG_IT=1 yarn test        # also the tests that write to the stack in config.jso
 ## Not yet
 
 - Blind spots.
-- GitHub nodes (`gh_user`, `gh_team`, `repo`): Kibana has no GitHub entity source yet, so they fail before anything is written.
 - More bundled scenarios.
 - Parallel bulk writes.

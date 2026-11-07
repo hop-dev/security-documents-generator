@@ -171,3 +171,29 @@ test('hosts and local accounts are written the way Kibana writes them', () => {
   assert.deepEqual(local.host, { id: uuid });
   assert.deepEqual(local.entity.relationships, { accesses_frequently: { ids: [host.entity.id] } });
 });
+
+test('GitHub nodes get the stand-in source github; a Lambda is FaaS', () => {
+  const g = loadScenario(
+    {
+      name: 'gh',
+      description: 'd',
+      nodes: [
+        { id: 'dev', type: 'gh_user', name: 'octo-dev' },
+        { id: 'team', type: 'gh_team', name: 'data-eng' },
+        { id: 'fn', type: 'compute', name: 'nightly-export', service: 'lambda' },
+        { id: 'vm', type: 'compute', name: 'etl-server-01' },
+      ],
+      edges: [['dev', 'member of', 'team']],
+    },
+    { seed: 42, now: NOW },
+  );
+  const d = buildDocuments(g, { seed: 42, now: NOW, arraysCap: 1000 });
+  const [dev, team, fn, vm] = d.nodes.map((n) => n.doc);
+  assert.equal(dev.entity.source, 'github');
+  assert.equal(dev.entity.namespace, 'github');
+  assert.equal(dev.entity.type, 'Identity');
+  assert.equal(team.entity.source, 'github');
+  assert.equal(team.entity.type, 'Group');
+  assert.equal(fn.entity.type, 'FaaS');
+  assert.equal(vm.entity.type, 'Virtual Machine');
+});
