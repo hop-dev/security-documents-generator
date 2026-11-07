@@ -15,6 +15,7 @@ import { cloudSecurityPostureCommands } from './commands/generate_cloud_security
 import { orgDataCommands } from './commands/org_data/index.ts';
 import { leadGenerationCommands } from './commands/lead_generation/index.ts';
 import { execBriefCommands } from './commands/exec_brief/index.ts';
+import { identityAccessGraphCommands } from './commands/identity_access_graph/index.ts';
 import { parseIntBase10 } from './commands/utils/cli_utils.ts';
 
 await createConfigFileOnFirstRun();
@@ -35,6 +36,7 @@ const commands = [
   orgDataCommands,
   leadGenerationCommands,
   execBriefCommands,
+  identityAccessGraphCommands,
 ];
 
 commands.forEach((cmd) => cmd.register(program));

@@ -1,0 +1,55 @@
+{
+  "name": "stolen-okta-session",
+  "description": "Example 1 (graph-analytics docs/graph-examples.html#ex1), graph part only. Alice's stolen Okta session reaches three crown jewels: the customer PII bucket through eng-oncall, OncallRole and DataAdminRole or BreakGlassRole; the warehouse through the prod/warehouse-admin secret or the etl-server-01 pivot to ETLRole; and Domain Admins through da-jlee's credentials left on that server. Backward, her Okta user owns the macOS account asmith, which logs on to the laptop ACME-MBP-0412, and resolves to her AD account by email. Not here, because they come from alerts and logs at query time: the two alerts, the session and its IPs, the other users and sessions behind those IPs, the 13:52 'assumed next' (a change after the batch, not generated) and the CloudTrail evidence line. etl-server-01 is two nodes, the EC2 instance and its Defend host, joined by 'same machine' (R9), because credentials are left on a host.",
+  "nodes": [
+    { "id": "okta_alice", "type": "okta_user", "name": "alice", "email": "alice@acme.com" },
+    { "id": "ad_alice", "type": "ad_acct", "name": "alice", "email": "alice@acme.com" },
+    { "id": "laptop", "type": "host", "name": "ACME-MBP-0412" },
+    { "id": "asmith", "type": "local_acct", "name": "asmith", "host": "laptop" },
+    { "id": "g_oncall", "type": "okta_group", "name": "eng-oncall" },
+    { "id": "g_all", "type": "okta_group", "name": "all-employees" },
+    { "id": "app_gh", "type": "saas", "name": "GitHub Enterprise" },
+    { "id": "r_oncall", "type": "role", "name": "OncallRole" },
+    { "id": "r_admin", "type": "role", "name": "DataAdminRole" },
+    { "id": "r_break", "type": "role", "name": "BreakGlassRole" },
+    { "id": "r_etl", "type": "role", "name": "ETLRole" },
+    { "id": "secret", "type": "secret", "name": "prod/warehouse-admin" },
+    { "id": "server", "type": "compute", "name": "etl-server-01" },
+    { "id": "server_host", "type": "host", "name": "etl-server-01" },
+    {
+      "id": "bucket",
+      "type": "bucket",
+      "name": "acme-customer-pii",
+      "criticality": "extreme_impact"
+    },
+    { "id": "warehouse", "type": "db", "name": "acme-warehouse", "criticality": "extreme_impact" },
+    { "id": "da_jlee", "type": "ad_acct", "name": "da-jlee" },
+    {
+      "id": "domain_admins",
+      "type": "ad_group",
+      "name": "Domain Admins",
+      "criticality": "extreme_impact"
+    }
+  ],
+  "edges": [
+    ["okta_alice", "owns", "asmith"],
+    ["okta_alice", "resolved to", "ad_alice"],
+    ["asmith", "logs on", "laptop", { "logons": 12 }],
+    ["okta_alice", "member of", "g_oncall"],
+    ["okta_alice", "member of", "g_all"],
+    ["g_oncall", "SSO to role", "r_oncall"],
+    ["g_all", "app assignment", "app_gh"],
+    ["r_oncall", "can assume", "r_admin"],
+    ["r_oncall", "can assume", "r_break"],
+    ["r_oncall", "can control", "server"],
+    ["r_oncall", "can read", "secret"],
+    ["r_admin", "bucket policy", "bucket"],
+    ["r_break", "bucket policy", "bucket"],
+    ["server", "runs as", "r_etl"],
+    ["r_etl", "role policy", "warehouse"],
+    ["secret", "holds its password", "warehouse"],
+    ["server", "same machine", "server_host"],
+    ["server_host", "credentials left", "da_jlee"],
+    ["da_jlee", "member of", "domain_admins"]
+  ]
+}

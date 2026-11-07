@@ -1,0 +1,312 @@
+{
+  "seed": 42,
+  "employees": 1000,
+  "per_employee": {
+    "okta_user": 1,
+    "ad_acct": 1,
+    "admin_acct": 0.05,
+    "host": 0.13,
+    "local_acct": 0.2,
+    "okta_group": 0.08,
+    "ad_group": 0.1,
+    "iam_user": 0.01,
+    "role": 0.05,
+    "bucket": 0.03,
+    "key": 0.01,
+    "secret": 0.01,
+    "db": 0.005,
+    "compute": 0.02,
+    "ext_acct": 0.002,
+    "saas": 0.02
+  },
+  "edges": [
+    {
+      "triple": ["okta_user", "member of", "okta_group"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 4,
+        "p99": 25
+      },
+      "targets": [
+        {
+          "fixed": "@Everyone"
+        },
+        {
+          "same": "department"
+        },
+        {
+          "random": true,
+          "skew": 1.2
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["okta_group", "SSO to role", "role"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 1,
+        "p99": 5,
+        "zero": 0.8
+      },
+      "targets": [
+        {
+          "same": "department"
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["okta_user", "SSO to role", "role"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 1,
+        "zero": 0.98
+      },
+      "targets": [
+        {
+          "random": true
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["role", "can assume", "role"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 3,
+        "zero": 0.9
+      },
+      "targets": [
+        {
+          "random": true,
+          "skew": 1
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["role", "bucket policy", "bucket"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 2,
+        "p99": 50
+      },
+      "targets": [
+        {
+          "same": "department"
+        },
+        {
+          "random": true,
+          "skew": 1.5
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["role", "role policy", "bucket"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 1,
+        "p99": 10,
+        "zero": 0.5
+      },
+      "targets": [
+        {
+          "same": "department"
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["role", "decrypt", "key"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 1,
+        "p99": 20,
+        "zero": 0.5
+      },
+      "targets": [
+        {
+          "via": [
+            ["bucket policy", "bucket"],
+            ["encrypted with", "key"]
+          ]
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["bucket", "encrypted with", "key"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 1,
+        "zero": 0.7
+      },
+      "targets": [
+        {
+          "same": "department"
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["iam_user", "user policy", "bucket"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 3,
+        "zero": 0.95
+      },
+      "targets": [
+        {
+          "random": true
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["ext_acct", "external trust", "role"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 2
+      },
+      "targets": [
+        {
+          "random": true
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["compute", "runs as", "role"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 1,
+        "zero": 0.3
+      },
+      "targets": [
+        {
+          "same": "department"
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["ad_acct", "member of", "ad_group"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 6,
+        "p99": 11
+      },
+      "targets": [
+        {
+          "fixed": "@Domain Users"
+        },
+        {
+          "same": "department"
+        },
+        {
+          "random": true
+        }
+      ],
+      "source": "ADSynth (flat; the middle tail is unknown)"
+    },
+    {
+      "triple": ["ad_group", "nested in", "ad_group"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 3,
+        "zero": 0.8
+      },
+      "targets": [
+        {
+          "same": "department"
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["ad_group", "local admin", "host"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 10,
+        "p99": 1000,
+        "zero": 0.95
+      },
+      "targets": [
+        {
+          "same": "tier"
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["local_acct", "logs on", "host"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 1
+      },
+      "targets": [
+        {
+          "own": true
+        }
+      ],
+      "source": "by definition"
+    },
+    {
+      "triple": ["host", "credentials left", "ad_acct"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 1,
+        "p99": 10
+      },
+      "targets": [
+        {
+          "random": true,
+          "skew": 1
+        }
+      ],
+      "source": "ADSynth's real university (as logons per account)"
+    }
+  ],
+  "logon_count": {
+    "dist": "lognormal",
+    "median": 3,
+    "p99": 40
+  },
+  "arrays_cap": 1000,
+  "pathologies": {
+    "hub_past_cap": {
+      "on": true,
+      "members": 50000
+    },
+    "single_choke_link": {
+      "on": true,
+      "share_cut": 0.7
+    },
+    "msol_bypass": {
+      "on": true
+    },
+    "indirect_role_chain": {
+      "on": true,
+      "depth": 2
+    },
+    "breakglass_role": {
+      "on": true
+    },
+    "false_merge": {
+      "on": true
+    }
+  },
+  "blind_spots": {
+    "host": 0.1
+  }
+}
