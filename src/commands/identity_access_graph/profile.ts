@@ -379,11 +379,15 @@ export const loadProfile = (raw: unknown, overrides: ProfileOverrides = {}): Pro
 
   if (!Array.isArray(raw.edges)) fail('edges must be a list of rows');
   const rows = (raw.edges as unknown[]).map(parseRow);
+  // A triple may repeat only to reach different named nodes, such as two built-in groups.
   const seen = new Set<string>();
   rows.forEach((r, i) => {
+    const named = r.targets.every((pk) => 'fixed' in pk)
+      ? r.targets.map((pk) => ('fixed' in pk ? pk.fixed : '')).join(',')
+      : '';
     const k = tripleLabel(rowSource(r), r.kind, r.to);
-    if (seen.has(k)) fail(`edges[${i}]: ${k} appears twice`);
-    seen.add(k);
+    if (seen.has(`${k} ${named}`)) fail(`edges[${i}]: ${k} appears twice`);
+    seen.add(`${k} ${named}`);
   });
 
   const pathologies: Profile['pathologies'] = {};
