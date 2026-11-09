@@ -20,6 +20,8 @@ export type Tier = 0 | 1 | 2;
 export interface CompanyNode extends ScenarioNode {
   /** The employee this node was generated for (employee nodes only). */
   slot?: number;
+  /** An extra AD admin account, not the person's daily one. */
+  admin?: true;
   department?: string;
   tier?: Tier;
 }
@@ -189,13 +191,14 @@ export const employee = (p: Profile, i: number): Employee => {
   }
   const admins = countFor(rate(p, 'admin_acct'), rngFor(p.seed, 'employee', i, 'admin'));
   for (let k = 0; k < admins; k++) {
-    nodes.push(
-      node(p, {
+    nodes.push({
+      ...node(p, {
         ...base,
         type: 'ad_acct',
         name: `adm-${slug(first)[0]}${slug(last)}${i}${k ? `-${k}` : ''}`,
       }),
-    );
+      admin: true,
+    });
   }
   for (const h of hostsOf(p, i)) {
     nodes.push(

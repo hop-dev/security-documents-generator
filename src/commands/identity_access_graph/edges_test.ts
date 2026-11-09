@@ -221,12 +221,21 @@ test("resolution: each Okta user resolves to the AD account with the same email,
 test('random and same pickers never draw built-in groups: Domain Admins is reached on purpose only', () => {
   // Regression: the default profile's random AD groups made 5% of employees Domain Admins.
   const g = gen(base.edges as object[]);
-  const { edges } = allChunks(g);
-  for (const ref of ['@Domain Admins', '@Enterprise Admins', '@Domain Computers']) {
+  const { edges, byId } = allChunks(g);
+  const membersOf = (ref: string) => {
     const id = g.backbone.byName.get(ref)?.entityId;
-    const members = edges.filter((e) => e.dst === id && e.kind === 'member_of');
-    assert.equal(members.length, 0, `${ref} has ${members.length} members`);
+    return edges.filter((e) => e.dst === id && e.kind === 'member_of');
+  };
+  for (const ref of ['@Enterprise Admins', '@Domain Computers']) {
+    assert.equal(membersOf(ref).length, 0, `${ref} has ${membersOf(ref).length} members`);
   }
+  // Domain Admins gets members on purpose only: the profile's admin_acct row.
+  const domainAdmins = membersOf('@Domain Admins');
+  assert.ok(domainAdmins.length > 0);
+  assert.ok(
+    domainAdmins.every((e) => byId.get(e.src)?.admin),
+    'only admin accounts',
+  );
   // Domain Users comes from the profile's `fixed` picker: every AD account with a membership row.
   const du = g.backbone.byName.get('@Domain Users')?.entityId;
   assert.ok(edges.filter((e) => e.dst === du).length > 1000);
@@ -314,5 +323,28 @@ test('hub grants that cannot work with this company fail up front', () => {
   assert.throws(
     () => gen([], 2000, { crown_jewels: { names: ['@Nobody'] } }),
     /crown_jewels\.names: "@Nobody" is not a company name/,
+  );
+});
+
+test('admin_acct rows: only admin accounts are sources, and other ad_acct rows draw as before', () => {
+  const adRow = row(['ad_acct', 'member of', 'ad_group'], { dist: 'uniform', min: 2, max: 2 }, [
+    { random: true },
+  ]);
+  const adminRow = row(
+    ['admin_acct', 'member of', 'ad_group'],
+    { dist: 'uniform', min: 1, max: 1 },
+    [{ fixed: '@Domain Admins' }],
+  );
+  const without = allChunks(gen([adRow]));
+  const withAdmins = allChunks(gen([adRow, adminRow]));
+  const da = gen([]).backbone.byName.get('@Domain Admins')?.entityId;
+  const added = withAdmins.edges.filter((e) => e.dst === da);
+  const admins = withAdmins.nodes.filter((n) => n.admin);
+  assert.ok(admins.length > 0);
+  assert.equal(added.length, admins.length, 'every admin account, and only them');
+  assert.ok(added.every((e) => withAdmins.byId.get(e.src)?.admin));
+  assert.deepEqual(
+    withAdmins.edges.filter((e) => e.dst !== da),
+    without.edges,
   );
 });

@@ -35,6 +35,8 @@ export type Picker =
 
 export interface EdgeRow {
   from: NodeType;
+  /** Sources are admin accounts only: `admin_acct` in the profile's triple. */
+  adminsOnly: boolean;
   kind: string;
   to: NodeType;
   triple: Triple;
@@ -43,6 +45,10 @@ export interface EdgeRow {
   /** Where the numbers come from ("guess", "ADSynth", ...). */
   source: string;
 }
+
+/** The row's source as the profile names it: a node type, or `admin_acct`. */
+export const rowSource = (r: Pick<EdgeRow, 'from' | 'adminsOnly'>): string =>
+  r.adminsOnly ? 'admin_acct' : r.from;
 
 /** Nodes marked `extreme_impact`: the targets blast radius and choke points walk back from. */
 export interface CrownJewels {
@@ -240,7 +246,11 @@ const parseRow = (raw: unknown, i: number): EdgeRow => {
     fail(`${where}: triple must be [from type, kind, to type]`);
   }
   const [from, kind, to] = t as [string, string, string];
-  const triple = isNodeType(from) && isNodeType(to) ? findTriple(from, kind, to) : undefined;
+  // `admin_acct` is a source only: the AD accounts per_employee.admin_acct adds.
+  const adminsOnly = from === 'admin_acct';
+  const fromType = adminsOnly ? 'ad_acct' : from;
+  const triple =
+    isNodeType(fromType) && isNodeType(to) ? findTriple(fromType, kind, to) : undefined;
   if (!triple) return fail(`${where}: impossible triple ${tripleLabel(from, kind, to)}`);
   if (!Array.isArray(raw.targets) || raw.targets.length === 0)
     fail(`${where}: targets must be a non-empty list of pickers`);
@@ -248,6 +258,7 @@ const parseRow = (raw: unknown, i: number): EdgeRow => {
     fail(`${where}: source must say where the numbers come from ("guess", ...)`);
   return {
     from: triple.from,
+    adminsOnly,
     kind,
     to: triple.to,
     triple,
@@ -263,7 +274,7 @@ const parseRow = (raw: unknown, i: number): EdgeRow => {
 /** Orders rows so each comes after the rows its `via` pickers follow; a cycle fails. */
 const orderRows = (rows: EdgeRow[]): EdgeRow[] => {
   const key = (from: string, kind: string, to: string) => `${from}|${kind}|${to}`;
-  const index = new Map(rows.map((r, i) => [key(r.from, r.kind, r.to), i]));
+  const index = new Map(rows.map((r, i) => [key(rowSource(r), r.kind, r.to), i]));
   const deps = rows.map((r) => {
     const out = new Set<number>();
     for (const p of r.targets) {
@@ -283,7 +294,7 @@ const orderRows = (rows: EdgeRow[]): EdgeRow[] => {
     if (state[i] === 2) return;
     if (state[i] === 1) {
       const cycle = [...stack.slice(stack.indexOf(i)), i].map((j) =>
-        tripleLabel(rows[j].from, rows[j].kind, rows[j].to),
+        tripleLabel(rowSource(rows[j]), rows[j].kind, rows[j].to),
       );
       fail(`via cycle: ${cycle.join(' follows ')}`);
     }
@@ -324,7 +335,7 @@ export const loadProfile = (raw: unknown, overrides: ProfileOverrides = {}): Pro
   const rows = (raw.edges as unknown[]).map(parseRow);
   const seen = new Set<string>();
   rows.forEach((r, i) => {
-    const k = tripleLabel(r.from, r.kind, r.to);
+    const k = tripleLabel(rowSource(r), r.kind, r.to);
     if (seen.has(k)) fail(`edges[${i}]: ${k} appears twice`);
     seen.add(k);
   });
@@ -391,7 +402,7 @@ export const estimateSize = (p: Profile): SizeEstimate => {
   const count = (type: string) => Math.round(p.employees * (p.perEmployee[type] ?? 0));
   const nodes = Object.keys(p.perEmployee).reduce((n, t) => n + count(t), 0);
   const rowEdges = p.edges.reduce(
-    (n, r) => n + Math.round(count(r.from) * meanCount(r.perSource)),
+    (n, r) => n + Math.round(count(rowSource(r)) * meanCount(r.perSource)),
     0,
   );
   const grantEdges = p.hubGrants.reduce(

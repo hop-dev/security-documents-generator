@@ -162,7 +162,7 @@ A profile is one JSON file with every setting for a generated company. Start fro
   "pathologies": { "single_choke_link": { "on": true, "share_cut": 0.7 } },
   "blind_spots": {},
   "crown_jewels": {
-    "names": ["@Domain Admins", "@Enterprise Admins"],
+    "names": ["@Domain Admins"],
     "per_type": { "bucket": 20, "db": 8, "secret": 10, "role": 10 }
   },
   "hub_grants": [
@@ -179,7 +179,7 @@ A profile is one JSON file with every setting for a generated company. Start fro
 ```
 
 - **`employees` and `per_employee`**: employees are the one size input; every other node count is employees × its rate. `admin_acct` is extra AD admin accounts. Fractional rates are drawn per employee (0.13 hosts: a 13% chance of one).
-- **`edges`**: one row per (source type, kind, target type). The profile fails to load if a row isn't an allowed edge.
+- **`edges`**: one row per (source type, kind, target type). The profile fails to load if a row isn't an allowed edge. A row's source can also be `admin_acct`, for admin accounts only, such as `["admin_acct", "member of", "ad_group"]` with `{ "fixed": "@Domain Admins" }`. An `ad_acct` row still covers every AD account, admin accounts included, and the two rows draw independently.
 - **`per_source`**: how many edges each source node gets, drawn from `uniform` (`min`, `max`), `normal` (`mean`, `sd`) or `lognormal` (`median`, `p99`). Draws are rounded and clipped at 0. `zero` (optional) is the share of sources with no edge of this kind at all.
 - **`targets`**: pickers fill the drawn number in order. Each picker takes one target, and the last takes what's left:
   - `{ "fixed": "@Everyone" }`: a named company node
@@ -196,8 +196,8 @@ Built-in groups (`Everyone`, `Domain Users`, `Domain Admins`, `Domain Computers`
 
 ### Bundled profiles
 
-- [`default`](profiles/default.json): 1,000 employees, about 5.5 edges a node, and up to 50 crown jewels. Scale it with `--employees`.
-- [`scale-target`](profiles/scale-target.json): the security-graph scale target, 5M nodes and 100M edges (1,841,000 employees, about 20.6 edges a node). The default with denser memberships (Okta median 18, AD median 24) and 30 days of credentials left on hosts (median 3). Every other setting is the default's.
+- [`default`](profiles/default.json): 1,000 employees, about 5.5 edges a node, and up to 49 crown jewels: Domain Admins plus buckets, databases, secrets and roles. Roles reach secrets and databases, and secrets hold database passwords. 10% of admin accounts are Domain Admins, so their credentials end up on hosts at the `credentials left` rate. Scale it with `--employees`.
+- [`scale-target`](profiles/scale-target.json): the security-graph scale target, 5M nodes and 100M edges (1,841,000 employees, about 20.6 edges a node). The default with denser memberships (Okta median 18, AD median 24), 30 days of credentials left on hosts (median 3), and 0.5% of admin accounts as Domain Admins (about 460). Every other setting is the default's.
 
 ## Pathologies
 

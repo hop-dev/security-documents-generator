@@ -11,7 +11,7 @@ import {
 } from './company.ts';
 import { drawCount } from './distributions.ts';
 import { edgeKind, entityId, graphVersion } from './ids.ts';
-import { type EdgeRow, type Picker, type Profile } from './profile.ts';
+import { rowSource, type EdgeRow, type Picker, type Profile } from './profile.ts';
 import { rngFor, type Rng } from './rng.ts';
 import { type EdgeDoc } from './scenario.ts';
 import { findTriple, type NodeType } from './triples.ts';
@@ -49,7 +49,7 @@ export interface CompanyGenerator {
 }
 
 const isEmployeeType = (t: NodeType) => EMPLOYEE_TYPES.includes(t);
-const label = (r: EdgeRow) => `${r.from} -[${r.kind}]-> ${r.to}`;
+const label = (r: EdgeRow) => `${rowSource(r)} -[${r.kind}]-> ${r.to}`;
 
 /** An index in [0, n), skewed toward 0 when skew > 0: a few targets get popular. */
 const skewedIndex = (n: number, rng: Rng, skew: number) =>
@@ -260,7 +260,8 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
   };
 
   const edgesFor = (r: EdgeRow, src: CompanyNode, out: EdgeDoc[]) => {
-    const rng = rngFor(p.seed, 'edges', r.from, r.kind, r.to, src.entityId);
+    // Keyed by the profile's source name, so an admin_acct row draws apart from its ad_acct row.
+    const rng = rngFor(p.seed, 'edges', rowSource(r), r.kind, r.to, src.entityId);
     const k = drawCount(r.perSource, rng);
     if (k === 0) return;
     for (const dst of targetsFor(r, src, k, rng)) {
@@ -357,7 +358,9 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
       const edges: EdgeDoc[] = [];
       for (const r of p.edges) {
         if (!isEmployeeType(r.from)) continue;
-        for (const src of nodes) if (src.type === r.from) edgesFor(r, src, edges);
+        for (const src of nodes) {
+          if (src.type === r.from && (!r.adminsOnly || src.admin)) edgesFor(r, src, edges);
+        }
       }
       edges.push(...resolutions(nodes), ...membershipEdges(nodes), ...grantEdges(nodes));
       return { nodes, edges };

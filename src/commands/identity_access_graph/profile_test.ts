@@ -245,3 +245,28 @@ test('scale-target: the bundled profile for 5M nodes and 100M edges', () => {
 test('a bundled profile that does not exist names the ones that do', () => {
   assert.throws(() => readBundledProfile('huge'), /no bundled profile "huge" \(bundled: .*default/);
 });
+
+test('admin_acct: a row source for admin accounts only, sized by per_employee.admin_acct', () => {
+  const adminRow = {
+    triple: ['admin_acct', 'member of', 'ad_group'],
+    per_source: { dist: 'uniform', min: 1, max: 1 },
+    targets: [{ fixed: '@Domain Admins' }],
+    source: 'guess',
+  };
+  const base = { ...TINY, per_employee: { ...TINY.per_employee, ad_acct: 1, admin_acct: 0.05 } };
+  const p = loadProfile({
+    ...base,
+    edges: [...TINY.edges, { ...adminRow, triple: ['ad_acct', 'member of', 'ad_group'] }, adminRow],
+  });
+  const [ad, admin] = p.edges.slice(-2);
+  assert.deepEqual(
+    [ad.from, ad.adminsOnly, admin.from, admin.adminsOnly],
+    ['ad_acct', false, 'ad_acct', true],
+  );
+  // 1000 employees x 0.05 admin accounts x 1 edge, on top of the ad_acct row's 1000.
+  assert.equal(estimateSize(p).edges - estimateSize(loadProfile(base)).edges, 1050);
+  assert.throws(
+    () => loadProfile({ ...base, edges: [adminRow, adminRow] }),
+    /admin_acct -\[member of\]-> ad_group appears twice/,
+  );
+});

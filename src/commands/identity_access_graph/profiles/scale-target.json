@@ -318,6 +318,74 @@
         }
       ],
       "source": "pathology 12: guess, 30% of instances run an agent"
+    },
+    {
+      "triple": ["role", "can read", "secret"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 1,
+        "p99": 5,
+        "zero": 0.7
+      },
+      "targets": [
+        {
+          "same": "department"
+        },
+        {
+          "random": true,
+          "skew": 1
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["role", "role policy", "db"],
+      "per_source": {
+        "dist": "lognormal",
+        "median": 1,
+        "p99": 3,
+        "zero": 0.8
+      },
+      "targets": [
+        {
+          "same": "department"
+        },
+        {
+          "random": true,
+          "skew": 1
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["secret", "holds its password", "db"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 1,
+        "zero": 0.5
+      },
+      "targets": [
+        {
+          "same": "department"
+        }
+      ],
+      "source": "guess"
+    },
+    {
+      "triple": ["admin_acct", "member of", "ad_group"],
+      "per_source": {
+        "dist": "uniform",
+        "min": 1,
+        "max": 1,
+        "zero": 0.995
+      },
+      "targets": [
+        {
+          "fixed": "@Domain Admins"
+        }
+      ],
+      "source": "guess: 0.5% of admin accounts are Domain Admins, about 460 at 1.84M employees"
     }
   ],
   "logon_count": {
@@ -353,7 +421,7 @@
     "host": 0.1
   },
   "crown_jewels": {
-    "names": ["@Domain Admins", "@Enterprise Admins"],
+    "names": ["@Domain Admins"],
     "per_type": {
       "bucket": 20,
       "db": 8,
