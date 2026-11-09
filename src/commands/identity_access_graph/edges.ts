@@ -41,6 +41,8 @@ export interface CompanyGenerator {
   backbone: Backbone;
   /** Planted pathologies and the node ids each added (for the manifest). */
   planted: Record<string, string[]>;
+  /** The crown jewels' node ids (for the manifest). */
+  crownJewels: string[];
   backboneEdges: EdgeDoc[];
   chunks: number;
   chunk(c: number): ChunkOut;
@@ -53,8 +55,33 @@ const label = (r: EdgeRow) => `${r.from} -[${r.kind}]-> ${r.to}`;
 const skewedIndex = (n: number, rng: Rng, skew: number) =>
   Math.min(n - 1, Math.floor(n * Math.pow(rng.next(), 1 + skew)));
 
-/** Checks every row's pickers against this company before generating anything. */
+/** Up to k distinct items of a list, chosen uniformly (a partial Fisher-Yates shuffle). */
+const choose = <T>(list: readonly T[], k: number, rng: Rng): T[] => {
+  const a = [...list];
+  const n = Math.min(k, a.length);
+  for (let i = 0; i < n; i++) {
+    const j = rng.int(i, a.length - 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a.slice(0, n);
+};
+
+/** Checks every row's pickers, hub grant and crown jewel name against this company first. */
 const checkRows = (p: Profile, bb: Backbone) => {
+  for (const name of p.crownJewels.names) {
+    if (!bb.byName.has(name)) {
+      throw new Error(`profile: crown_jewels.names: "${name}" is not a company name`);
+    }
+  }
+  for (const g of p.hubGrants) {
+    const n = bb.byName.get(g.from);
+    if (!n) throw new Error(`profile: hub_grants: from "${g.from}" is not a company name`);
+    if (!findTriple(n.type, g.kind, g.to)) {
+      throw new Error(
+        `profile: hub_grants: ${g.from} is an ${n.type}, and ${n.type} -[${g.kind}]-> ${g.to} is not a triple`,
+      );
+    }
+  }
   for (const r of p.edges) {
     const where = `profile: edges ${label(r)}`;
     for (const pk of r.targets) {
@@ -86,14 +113,27 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
   const builtIns = new Set(
     [...bb.byName].filter(([ref]) => !ref.includes(':')).map(([, n]) => n.entityId),
   );
-  const byType = new Map<NodeType, Target[]>();
+  const byType = new Map<NodeType, CompanyNode[]>();
   for (const n of bb.nodes) {
-    if (!builtIns.has(n.entityId)) byType.set(n.type, [...(byType.get(n.type) ?? []), n]);
+    if (builtIns.has(n.entityId)) continue;
+    const list = byType.get(n.type);
+    if (list) list.push(n);
+    else byType.set(n.type, [n]);
   }
   const planted = plantPathologies(p, bb);
   bb.nodes.push(...planted.nodes);
   for (const [ref, n] of planted.refs) bb.byName.set(ref, n);
   checkRows(p, bb);
+
+  // Crown jewels: the named nodes, then up to per_type generated nodes of each type, chosen by
+  // seed from their own stream, so marking them changes no edge.
+  const crownJewels = [
+    ...p.crownJewels.names.map((name) => bb.byName.get(name) as CompanyNode),
+    ...Object.entries(p.crownJewels.perType).flatMap(([type, k]) =>
+      choose(byType.get(type as NodeType) ?? [], k ?? 0, rngFor(p.seed, 'crown_jewels', type)),
+    ),
+  ];
+  for (const n of crownJewels) n.criticality = 'extreme_impact';
 
   // Hosts are listed once (cheap: no names drawn), so `same: tier` can find rare tiers.
   let hostList: Target[] | undefined;
@@ -115,6 +155,19 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
   };
   const listOf = (t: NodeType): Target[] | undefined =>
     t === 'host' ? hosts() : isEmployeeType(t) ? undefined : (byType.get(t) ?? []);
+
+  // `same` pools, filtered once per type, field and value. Filtering per source made the run
+  // grow with employees squared (an estimated two hours of CPU at 5M nodes).
+  const samePools = new Map<string, Target[]>();
+  const samePool = (list: Target[], t: NodeType, field: 'department' | 'tier', v: unknown) => {
+    const key = `${t}|${field}|${v}`;
+    let pool = samePools.get(key);
+    if (!pool) {
+      pool = list.filter((x) => x[field] === v);
+      samePools.set(key, pool);
+    }
+    return pool;
+  };
 
   // A small cache of rebuilt employees: targets owned by employees are found by index.
   const cache = new Map<number, CompanyNode[]>();
@@ -139,13 +192,7 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
       seen.add(id);
       chosen.push(id);
     };
-    const takeFrom = (
-      list: Target[],
-      want: number,
-      skew: number,
-      keep?: (t: Target) => boolean,
-    ) => {
-      const pool = keep ? list.filter(keep) : list;
+    const takeFrom = (pool: Target[], want: number, skew: number) => {
       const goal = Math.min(k, chosen.length + want);
       if (pool.length <= want) {
         for (const t of pool) add(t.entityId);
@@ -171,10 +218,15 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
         if (found.length) add(found[rng.int(0, found.length - 1)].entityId);
       }
     };
-    const fill = (want: number, skew: number, keep?: (t: Target) => boolean) => {
+    const fill = (want: number, skew: number) => {
       const list = listOf(r.to);
-      if (list) takeFrom(list, want, skew, keep);
-      else sampleEmployees(want, skew, keep);
+      if (list) takeFrom(list, want, skew);
+      else sampleEmployees(want, skew);
+    };
+    const fillSame = (want: number, field: 'department' | 'tier', v: unknown) => {
+      const list = listOf(r.to);
+      if (list) takeFrom(samePool(list, r.to, field, v), want, 0);
+      else sampleEmployees(want, 0, (t) => t[field] === v);
     };
     const own = (): string[] => {
       if (r.from === 'local_acct' && r.to === 'host')
@@ -201,7 +253,7 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
       else if ('via' in pk) takeFrom(via(pk.via), want, 0);
       else if ('same' in pk) {
         const v = src[pk.same];
-        if (v !== undefined) fill(want, 0, (t) => t[pk.same] === v);
+        if (v !== undefined) fillSame(want, pk.same, v);
       } else fill(want, pk.skew);
     });
     return chosen;
@@ -259,6 +311,17 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
     return out;
   };
 
+  // Hub grants reach generated nodes only, like random pickers: never a built-in or planted one.
+  // Each target draws from its own stream, so chunking doesn't change them.
+  const grants = p.hubGrants.map((g) => ({ ...g, src: bb.byName.get(g.from) as CompanyNode }));
+  const grantEdges = (targets: readonly CompanyNode[]): EdgeDoc[] =>
+    grants.flatMap((g) =>
+      targets
+        .filter((n) => n.type === g.to && (g.tier === undefined || n.tier === g.tier))
+        .filter((n) => rngFor(p.seed, 'hub_grant', g.from, g.kind, n.entityId).next() < g.share)
+        .map((n) => ruleEdge(g.src, g.kind, n)),
+    );
+
   const backboneEdges: EdgeDoc[] = [];
   for (const r of p.edges) {
     if (isEmployeeType(r.from)) continue;
@@ -267,6 +330,7 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
     }
   }
   for (const e of planted.edges) backboneEdges.push(ruleEdge(e.from, e.kind, e.to));
+  backboneEdges.push(...grantEdges([...byType.values()].flat()));
 
   /** Company employees in this chunk who join planted groups. */
   const membershipEdges = (nodes: CompanyNode[]): EdgeDoc[] => {
@@ -285,6 +349,7 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
     profile: p,
     backbone: bb,
     planted: planted.report,
+    crownJewels: crownJewels.map((n) => n.entityId),
     backboneEdges,
     chunks: chunkCount(p),
     chunk: (c: number) => {
@@ -294,7 +359,7 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
         if (!isEmployeeType(r.from)) continue;
         for (const src of nodes) if (src.type === r.from) edgesFor(r, src, edges);
       }
-      edges.push(...resolutions(nodes), ...membershipEdges(nodes));
+      edges.push(...resolutions(nodes), ...membershipEdges(nodes), ...grantEdges(nodes));
       return { nodes, edges };
     },
   };

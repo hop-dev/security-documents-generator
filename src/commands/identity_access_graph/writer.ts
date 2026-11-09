@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { type Client } from '@elastic/elasticsearch';
+import pMap from 'p-map';
 import { getEsClient } from '../utils/indices.ts';
 import { getDataDir } from '../../utils/data_paths.ts';
 import { log } from '../../utils/logger.ts';
@@ -22,6 +23,9 @@ import {
 // with update + doc_as_upsert, edges to entities-edges-<space>, both with plain _bulk.
 
 const BULK_BATCH = 1000;
+
+/** Employee chunks written at once. */
+export const DEFAULT_BULK_CONCURRENCY = 4;
 
 export const latestAlias = (space: string) => `entities-latest-${space}`;
 export const edgesAlias = (space: string) => `entities-edges-${space}`;
@@ -130,10 +134,18 @@ const writeManifest = (space: string, seed: number, manifest: object) => {
   return file;
 };
 
+const isPath = (nameOrPath: string) => nameOrPath.endsWith('.json') || nameOrPath.includes('/');
+
 const readScenario = (nameOrPath: string): unknown =>
-  nameOrPath.endsWith('.json') || nameOrPath.includes('/')
+  isPath(nameOrPath)
     ? JSON.parse(readFileSync(nameOrPath, 'utf8'))
     : readBundledScenario(nameOrPath);
+
+const readProfile = (nameOrPath: string): unknown => {
+  if (!isPath(nameOrPath)) return readBundledProfile(nameOrPath);
+  if (!existsSync(nameOrPath)) throw new Error(`profile file not found: ${nameOrPath}`);
+  return JSON.parse(readFileSync(nameOrPath, 'utf8'));
+};
 
 export interface LoadScenarioParams {
   scenario: string;
@@ -190,12 +202,14 @@ export const loadIdentityAccessScenario = async ({
 };
 
 export interface GenerateParams {
-  /** Path to a profile JSON; the bundled default when absent. */
+  /** A bundled profile name or a path to a profile JSON; `default` when absent. */
   profile?: string;
   employees?: number;
   seed?: number;
   space: string;
   maxNodes?: number;
+  /** Employee chunks written at once. */
+  bulkConcurrency?: number;
   now?: Date;
   /** A scenario (bundled name or path) to plant in the company. */
   scenario?: string;
@@ -203,20 +217,17 @@ export interface GenerateParams {
 
 /** generate-identity-access-graph: a random company from a profile, written chunk by chunk. */
 export const generateIdentityAccessGraph = async ({
-  profile: profilePath,
+  profile: profileArg = 'default',
   employees,
   seed,
   space,
   maxNodes = DEFAULT_MAX_NODES,
+  bulkConcurrency = DEFAULT_BULK_CONCURRENCY,
   now = new Date(),
   scenario: scenarioArg,
 }: GenerateParams) => {
   // Everything that can fail without touching Elasticsearch runs first.
-  if (profilePath && !existsSync(profilePath))
-    throw new Error(`profile file not found: ${profilePath}`);
-  const raw = (
-    profilePath ? JSON.parse(readFileSync(profilePath, 'utf8')) : readBundledProfile('default')
-  ) as Record<string, unknown>;
+  const raw = readProfile(profileArg) as Record<string, unknown>;
   // A scenario that references a pathology node (@chain-oncall, @MSOL_, ...) switches it on.
   const rawScenario = scenarioArg ? readScenario(scenarioArg) : undefined;
   const switchedOn = rawScenario ? pathologiesReferenced(rawScenario) : [];
@@ -290,16 +301,23 @@ export const generateIdentityAccessGraph = async ({
 
   await write({ nodes: gen.backbone.nodes, edges: gen.backboneEdges });
   if (scenario) await write(scenario, scenarioDocs);
-  for (let c = 0; c < gen.chunks; c++) {
-    const chunk = gen.chunk(c);
-    checkCollisions(chunk.nodes);
-    await write(chunk);
-    if ((c + 1) % 10 === 0 || c === gen.chunks - 1) {
-      log.info(
-        `Chunk ${c + 1}/${gen.chunks}: ${nodes.toLocaleString('en-US')} entities, ${edges.toLocaleString('en-US')} edges`,
-      );
-    }
-  }
+  // Chunks are generated one at a time (generation is synchronous) and written in parallel.
+  let written = 0;
+  await pMap(
+    Array.from({ length: gen.chunks }, (_, c) => c),
+    async (c) => {
+      const chunk = gen.chunk(c);
+      checkCollisions(chunk.nodes);
+      await write(chunk);
+      written++;
+      if (written % 10 === 0 || written === gen.chunks) {
+        log.info(
+          `Chunk ${written}/${gen.chunks}: ${nodes.toLocaleString('en-US')} entities, ${edges.toLocaleString('en-US')} edges`,
+        );
+      }
+    },
+    { concurrency: bulkConcurrency },
+  );
   await refresh(es, space);
 
   const manifestPath = writeManifest(space, p.seed, {
@@ -311,6 +329,7 @@ export const generateIdentityAccessGraph = async ({
     estimate,
     ...(scenario && { scenario: { name: scenario.name, description: scenario.description } }),
     planted_pathologies: gen.planted,
+    crown_jewels: gen.crownJewels,
     ...(switchedOn.length && { switched_on_by_scenario: switchedOn }),
     counts: {
       employees: p.employees,

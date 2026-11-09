@@ -351,5 +351,15 @@
   },
   "blind_spots": {
     "host": 0.1
-  }
+  },
+  "crown_jewels": {
+    "names": ["@Domain Admins", "@Enterprise Admins"],
+    "per_type": {
+      "bucket": 20,
+      "db": 8,
+      "secret": 10,
+      "role": 10
+    }
+  },
+  "hub_grants": []
 }

@@ -1,7 +1,8 @@
-import { readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
+import { EMPLOYEE_TYPES, hostTierShare, type Tier } from './company.ts';
 import { meanCount, parseDistribution, type Distribution } from './distributions.ts';
 import { DEFAULT_ARRAYS_CAP } from './documents.ts';
-import { findTriple, isNodeType, type NodeType, type Triple } from './triples.ts';
+import { findTriple, isNodeType, TRIPLES, type NodeType, type Triple } from './triples.ts';
 
 // The profile: every advanced setting for a generated company (SPEC.md section 1, Profile).
 // loadProfile checks it all at load, so a bad profile fails before anything is generated.
@@ -43,6 +44,28 @@ export interface EdgeRow {
   source: string;
 }
 
+/** Nodes marked `extreme_impact`: the targets blast radius and choke points walk back from. */
+export interface CrownJewels {
+  /** Company nodes by `@` name, e.g. `@Domain Admins`. */
+  names: string[];
+  /** Up to this many generated nodes of each shared type, chosen by seed. */
+  perType: Partial<Record<NodeType, number>>;
+}
+
+/** One named node with the same edge to a share of all nodes of a type: a hub on purpose. */
+export interface HubGrant {
+  /** A company node by `@` name, e.g. `@Domain Users`. */
+  from: string;
+  kind: string;
+  to: NodeType;
+  /** Hosts of this tier only. */
+  tier?: Tier;
+  /** The share of `to` nodes that get the edge, from 0 to 1. */
+  share: number;
+  /** Where the share comes from ("guess", ...). */
+  source: string;
+}
+
 export interface Profile {
   seed: number;
   employees: number;
@@ -53,6 +76,8 @@ export interface Profile {
   arraysCap: number;
   pathologies: Record<string, { on: boolean } & Record<string, number | boolean>>;
   blindSpots: Partial<Record<NodeType, number>>;
+  crownJewels: CrownJewels;
+  hubGrants: HubGrant[];
 }
 
 const TOP_KEYS = [
@@ -64,7 +89,11 @@ const TOP_KEYS = [
   'arrays_cap',
   'pathologies',
   'blind_spots',
+  'crown_jewels',
+  'hub_grants',
 ];
+
+const TIERS: readonly Tier[] = [0, 1, 2];
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -78,6 +107,65 @@ const wholeNumber = (v: unknown, what: string, min: number): number =>
   Number.isInteger(v) && (v as number) >= min
     ? (v as number)
     : fail(`${what} must be a whole number of at least ${min}`);
+
+const isAtName = (v: unknown): v is string => typeof v === 'string' && /^@.+/.test(v);
+
+const checkKeys = (raw: Record<string, unknown>, allowed: readonly string[], where: string) => {
+  for (const k of Object.keys(raw))
+    if (!allowed.includes(k)) fail(`${where}: unknown field "${k}"`);
+};
+
+const parseCrownJewels = (raw: unknown): CrownJewels => {
+  if (raw === undefined) return { names: [], perType: {} };
+  if (!isObj(raw)) return fail('crown_jewels must be an object with names and per_type');
+  checkKeys(raw, ['names', 'per_type'], 'crown_jewels');
+  const names = raw.names ?? [];
+  if (!Array.isArray(names) || !names.every(isAtName)) {
+    fail('crown_jewels.names: a list of @ names, e.g. ["@Domain Admins"]');
+  }
+  const rawPerType = raw.per_type ?? {};
+  if (!isObj(rawPerType)) fail('crown_jewels.per_type must be an object of node type: count');
+  const perType: CrownJewels['perType'] = {};
+  for (const [type, v] of Object.entries(rawPerType as object)) {
+    if (!isNodeType(type) || EMPLOYEE_TYPES.includes(type)) {
+      fail(`crown_jewels.per_type: "${type}" is not a shared node type (bucket, role, db, ...)`);
+    }
+    perType[type as NodeType] = wholeNumber(v, `crown_jewels.per_type.${type}`, 0);
+  }
+  return { names: names as string[], perType };
+};
+
+const parseHubGrant = (raw: unknown, i: number): HubGrant => {
+  const where = `hub_grants[${i}]`;
+  if (!isObj(raw)) return fail(`${where}: must be an object`);
+  checkKeys(raw, ['from', 'kind', 'to', 'tier', 'share', 'source'], where);
+  const { from, kind, to, tier, share, source } = raw;
+  if (!isAtName(from)) fail(`${where}.from: an @ name, e.g. "@Domain Users"`);
+  if (typeof to !== 'string' || !isNodeType(to)) fail(`${where}.to: unknown node type "${to}"`);
+  if (typeof kind !== 'string' || !TRIPLES.some((t) => t.kind === kind && t.to === to)) {
+    fail(`${where}: no triple has kind "${kind}" ending at ${to}`);
+  }
+  if (tier !== undefined && (to !== 'host' || !TIERS.includes(tier as Tier))) {
+    fail(`${where}.tier: hosts only, 0 (domain controllers), 1 (servers) or 2 (workstations)`);
+  }
+  if (!isNum(share) || share < 0 || share > 1) fail(`${where}.share: must be from 0 to 1`);
+  if (typeof source !== 'string' || source === '')
+    fail(`${where}.source: say where the share comes from ("guess", ...)`);
+  return {
+    from: from as string,
+    kind: kind as string,
+    to: to as NodeType,
+    ...(tier !== undefined && { tier: tier as Tier }),
+    share: share as number,
+    source: source as string,
+  };
+};
+
+const parseHubGrants = (raw: unknown): HubGrant[] => {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) return fail('hub_grants must be a list');
+  return raw.map(parseHubGrant);
+};
 
 const parsePicker = (
   raw: unknown,
@@ -273,13 +361,21 @@ export const loadProfile = (raw: unknown, overrides: ProfileOverrides = {}): Pro
         : wholeNumber(raw.arrays_cap, 'arrays_cap', 0),
     pathologies,
     blindSpots,
+    crownJewels: parseCrownJewels(raw.crown_jewels),
+    hubGrants: parseHubGrants(raw.hub_grants),
   };
 };
 
-/** Reads a profile bundled with the command, by name (`default`). */
+const PROFILES_DIR = new URL('./profiles/', import.meta.url);
+
+/** Reads a profile bundled with the command, by name (`default`, `scale-target`). */
 export const readBundledProfile = (name: string): unknown => {
-  if (!/^[a-z0-9-]+$/.test(name)) throw new Error(`not a bundled profile name: "${name}"`);
-  return JSON.parse(readFileSync(new URL(`./profiles/${name}.json`, import.meta.url), 'utf8'));
+  const file = new URL(`${name}.json`, PROFILES_DIR);
+  if (!/^[a-z0-9-]+$/.test(name) || !existsSync(file)) {
+    const bundled = readdirSync(PROFILES_DIR).map((f) => f.replace(/\.json$/, ''));
+    throw new Error(`no bundled profile "${name}" (bundled: ${bundled.join(', ')})`);
+  }
+  return JSON.parse(readFileSync(file, 'utf8'));
 };
 
 export interface SizeEstimate {
@@ -287,12 +383,23 @@ export interface SizeEstimate {
   edges: number;
 }
 
-/** Nodes: employees x per_employee. Edges: source nodes x mean out-degree, per row. */
+/**
+ * Nodes: employees x per_employee. Edges: source nodes x mean out-degree, per row, plus each
+ * hub grant's share of its target nodes.
+ */
 export const estimateSize = (p: Profile): SizeEstimate => {
   const count = (type: string) => Math.round(p.employees * (p.perEmployee[type] ?? 0));
   const nodes = Object.keys(p.perEmployee).reduce((n, t) => n + count(t), 0);
-  const edges = p.edges.reduce((n, r) => n + Math.round(count(r.from) * meanCount(r.perSource)), 0);
-  return { nodes, edges };
+  const rowEdges = p.edges.reduce(
+    (n, r) => n + Math.round(count(r.from) * meanCount(r.perSource)),
+    0,
+  );
+  const grantEdges = p.hubGrants.reduce(
+    (n, g) =>
+      n + Math.round(count(g.to) * g.share * (g.tier === undefined ? 1 : hostTierShare(g.tier))),
+    0,
+  );
+  return { nodes, edges: rowEdges + grantEdges };
 };
 
 const fmt = (n: number) =>

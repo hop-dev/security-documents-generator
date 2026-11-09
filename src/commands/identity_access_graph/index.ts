@@ -1,8 +1,9 @@
 import { type Command } from 'commander';
 import { type CommandModule } from '../types.ts';
-import { parseIntBase10, wrapAction } from '../utils/cli_utils.ts';
+import { assertPositiveInt, parseIntBase10, wrapAction } from '../utils/cli_utils.ts';
 import {
   cleanIdentityAccessGraph,
+  DEFAULT_BULK_CONCURRENCY,
   generateIdentityAccessGraph,
   loadIdentityAccessScenario,
 } from './writer.ts';
@@ -16,7 +17,10 @@ export const identityAccessGraphCommands: CommandModule = {
       .description(
         'Generate a random company identity access graph from a profile into the Entity Store and the edges index',
       )
-      .option('--profile <path>', 'profile JSON (default: the bundled default profile)')
+      .option(
+        '--profile <profile>',
+        'bundled profile name (default, scale-target) or path to a .json file (default: default)',
+      )
       .option('--employees <n>', "employees (overrides the profile's)", parseIntBase10)
       .option(
         '--seed <seed>',
@@ -30,6 +34,12 @@ export const identityAccessGraphCommands: CommandModule = {
         `refuse to start above this many estimated nodes (default ${DEFAULT_MAX_NODES})`,
         parseIntBase10,
       )
+      .option(
+        '--bulk-concurrency <n>',
+        `employee chunks written at once (default ${DEFAULT_BULK_CONCURRENCY})`,
+        parseIntBase10,
+        DEFAULT_BULK_CONCURRENCY,
+      )
       .action(
         wrapAction(
           async (options: {
@@ -38,8 +48,10 @@ export const identityAccessGraphCommands: CommandModule = {
             seed?: number;
             space: string;
             maxNodes?: number;
+            bulkConcurrency: number;
             scenario?: string;
           }) => {
+            assertPositiveInt(options.bulkConcurrency, '--bulk-concurrency');
             await generateIdentityAccessGraph(options);
           },
         ),

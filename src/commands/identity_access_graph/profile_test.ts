@@ -184,3 +184,64 @@ test('arrays_cap defaults to 1,000 when the profile leaves it out', () => {
   const { arrays_cap: _, ...rest } = TINY;
   assert.equal(loadProfile(rest).arraysCap, 1000);
 });
+
+test('crown jewels and hub grants: each field is checked at load', () => {
+  const grant = {
+    from: '@Domain Users',
+    kind: 'local admin',
+    to: 'host',
+    tier: 2,
+    share: 0.5,
+    source: 'guess',
+  };
+  const p = loadProfile({
+    ...TINY,
+    crown_jewels: { names: ['@Domain Admins'], per_type: { bucket: 20 } },
+    hub_grants: [grant],
+  });
+  assert.deepEqual(p.crownJewels, { names: ['@Domain Admins'], perType: { bucket: 20 } });
+  assert.deepEqual(p.hubGrants, [grant]);
+  assert.deepEqual(loadProfile(TINY).crownJewels, { names: [], perType: {} });
+  assert.deepEqual(loadProfile(TINY).hubGrants, []);
+
+  const bad: Array<[object, RegExp]> = [
+    [{ crown_jewels: { names: ['Domain Admins'] } }, /crown_jewels\.names: a list of @ names/],
+    [{ crown_jewels: { per_type: { host: 5 } } }, /"host" is not a shared node type/],
+    [{ crown_jewels: { per_type: { bucket: 1.5 } } }, /crown_jewels\.per_type\.bucket/],
+    [{ crown_jewels: { size: 50 } }, /crown_jewels: unknown field "size"/],
+    [
+      { hub_grants: [{ ...grant, kind: 'can assume' }] },
+      /no triple has kind "can assume" ending at host/,
+    ],
+    [{ hub_grants: [{ ...grant, to: 'bucket', kind: 'bucket policy' }] }, /tier: hosts only/],
+    [{ hub_grants: [{ ...grant, tier: 3 }] }, /tier: hosts only/],
+    [{ hub_grants: [{ ...grant, share: 2 }] }, /share: must be from 0 to 1/],
+    [{ hub_grants: [{ ...grant, source: '' }] }, /source: say where the share comes from/],
+  ];
+  for (const [over, re] of bad) assert.throws(() => loadProfile({ ...TINY, ...over }), re);
+});
+
+test('size estimate counts hub grant edges: the share of target nodes, by tier for hosts', () => {
+  const withHosts = { ...TINY, per_employee: { ...TINY.per_employee, host: 0.1 } };
+  const without = estimateSize(loadProfile(withHosts)).edges;
+  const grant = {
+    from: '@Domain Users',
+    kind: 'local admin',
+    to: 'host',
+    share: 0.5,
+    source: 'guess',
+  };
+  // 1000 employees x 0.1 hosts x 0.85 workstations x 0.5
+  const workstations = loadProfile({ ...withHosts, hub_grants: [{ ...grant, tier: 2 }] });
+  assert.equal(estimateSize(workstations).edges - without, 43);
+});
+
+test('scale-target: the bundled profile for 5M nodes and 100M edges', () => {
+  const est = estimateSize(loadProfile(readBundledProfile('scale-target')));
+  assert.ok(Math.abs(est.nodes - 5e6) < 5e6 * 0.02, `nodes: ${est.nodes}`);
+  assert.ok(Math.abs(est.edges - 1e8) < 1e8 * 0.05, `edges: ${est.edges}`);
+});
+
+test('a bundled profile that does not exist names the ones that do', () => {
+  assert.throws(() => readBundledProfile('huge'), /no bundled profile "huge" \(bundled: .*default/);
+});

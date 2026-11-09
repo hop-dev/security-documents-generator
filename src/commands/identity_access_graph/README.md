@@ -22,15 +22,17 @@ Generate a random company from a profile.
 yarn start identity-graph --seed 7
 yarn start identity-graph --seed 7 --employees 50000
 yarn start identity-graph --seed 7 --profile ./my-profile.json
+yarn start identity-graph --seed 7 --profile scale-target
 yarn start identity-graph --seed 7 --scenario stolen-okta-session
 ```
 
-- `--profile <path>`: profile JSON (default: the bundled [`profiles/default.json`](profiles/default.json))
+- `--profile <name|path>`: a bundled profile (see [Bundled profiles](#bundled-profiles)) or a path to a `.json` file (default: `default`)
 - `--employees <n>`: employees, overriding the profile's
 - `--seed <seed>`: seed, overriding the profile's. The same seed gives the same graph.
 - `--space <space>`: Kibana space (default: `default`)
 - `--scenario <name|path>`: plant a scenario in the company (see [Scenarios](#scenarios))
 - `--max-nodes <n>`: raise the size limit (default: 50,000,000)
+- `--bulk-concurrency <n>`: employee chunks written at once (default: 4)
 
 Before writing anything the command prints its size estimate and refuses to start above the limit:
 
@@ -38,7 +40,7 @@ Before writing anything the command prints its size estimate and refuses to star
 Estimated 82M nodes, 387M edges. Limit is 50M nodes; pass --max-nodes 90000000 to run anyway.
 ```
 
-Employees are generated in chunks of 1,000 and written as they go, so memory stays flat. On a local single-node stack it writes about 28k documents a second (50k employees: 136k entities and 644k edges in 28 s).
+Employees are generated in chunks of 1,000, one at a time, and up to `--bulk-concurrency` chunks are written at once, so memory stays flat. Generating takes about 0.1 s a chunk whatever the company's size: `scale-target` (1.84M employees, 5M nodes, 103M edges) takes about 5 minutes of CPU before writes. With one chunk at a time, a local single-node stack wrote about 28k documents a second (50k employees: 136k entities and 644k edges in 28 s).
 
 ### `load-identity-access-scenario`
 
@@ -132,7 +134,7 @@ FROM entities-edges-default
 
 ### Manifest
 
-Each run writes `data/identity_access_graph/<space>/<seed>/manifest.json` (gitignored): the resolved profile, the size estimate, counts by node type and edge kind, employees and identities, how many documents hit the arrays cap, the planted scenario and pathologies with their node ids. It records no expected answers: computing reach is the job of whatever is being tested against the data.
+Each run writes `data/identity_access_graph/<space>/<seed>/manifest.json` (gitignored): the resolved profile, the size estimate, counts by node type and edge kind, employees and identities, how many documents hit the arrays cap, the planted scenario and pathologies with their node ids, and the crown jewels' node ids. It records no expected answers: computing reach is the job of whatever is being tested against the data.
 
 ## Profile
 
@@ -158,7 +160,21 @@ A profile is one JSON file with every setting for a generated company. Start fro
   "logon_count": { "dist": "lognormal", "median": 3, "p99": 40 },
   "arrays_cap": 1000,
   "pathologies": { "single_choke_link": { "on": true, "share_cut": 0.7 } },
-  "blind_spots": {}
+  "blind_spots": {},
+  "crown_jewels": {
+    "names": ["@Domain Admins", "@Enterprise Admins"],
+    "per_type": { "bucket": 20, "db": 8, "secret": 10, "role": 10 }
+  },
+  "hub_grants": [
+    {
+      "from": "@Domain Users",
+      "kind": "local admin",
+      "to": "host",
+      "tier": 2,
+      "share": 0.5,
+      "source": "guess"
+    }
+  ]
 }
 ```
 
@@ -172,9 +188,16 @@ A profile is one JSON file with every setting for a generated company. Start fro
   - `{ "via": [["bucket policy", "bucket"], ["encrypted with", "key"]] }`: targets reached by following other edges
   - `{ "own": true }`: the source's own node (a local account's host, a person's admin or local accounts)
 - **`logon_count`**: logons per local account → host edge (decides frequent or infrequent).
+- **`crown_jewels`**: nodes marked `asset.criticality: extreme_impact`, the targets blast radius and choke points walk back from. `names` are company nodes by `@` name. `per_type` asks for up to that many generated nodes of a shared type (`bucket`, `db`, `secret`, `role`, ...), chosen by seed. A company with fewer marks all of them. Marking a crown jewel changes no edge. Pathologies mark their own (Domain Admins, `customer-pii-vault`) too.
+- **`hub_grants`**: one named node with the same edge to a share of all generated nodes of a type, for hubs no picker can make, such as Domain Users being local admin on most workstations. `from` is an `@` name, `kind` and `to` must make an allowed edge from its type, `tier` (hosts only) narrows the targets, and `share` is from 0 to 1. Each target draws from its own stream, so the same seed gives the same grants. Vary `share` to test how much hubs change reach.
 - **`pathologies`** and **`blind_spots`**: see below.
 
-Built-in groups (`Everyone`, `Domain Users`, `Domain Admins`, `Domain Computers`, `Enterprise Admins`) are never drawn at random: they come from `fixed` pickers or planted pathologies.
+Built-in groups (`Everyone`, `Domain Users`, `Domain Admins`, `Domain Computers`, `Enterprise Admins`) are never drawn at random: they come from `fixed` pickers, hub grants or planted pathologies.
+
+### Bundled profiles
+
+- [`default`](profiles/default.json): 1,000 employees, about 5.5 edges a node, and up to 50 crown jewels. Scale it with `--employees`.
+- [`scale-target`](profiles/scale-target.json): the security-graph scale target, 5M nodes and 100M edges (1,841,000 employees, about 20.6 edges a node). The default with denser memberships (Okta median 18, AD median 24) and 30 days of credentials left on hosts (median 3). Every other setting is the default's.
 
 ## Pathologies
 
@@ -237,4 +260,3 @@ IAG_IT=1 yarn test        # also the tests that write to the stack in config.jso
 
 - Blind spots.
 - More bundled scenarios.
-- Parallel bulk writes.

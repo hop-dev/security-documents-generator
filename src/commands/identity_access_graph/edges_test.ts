@@ -256,3 +256,63 @@ test('default profile: rate pathologies 8, 11 and 12 and workstation admins are 
     'workstation admins',
   );
 });
+
+test('crown jewels: the named nodes plus up to per_type generated ones, and no edge changes', () => {
+  const crown = { names: ['@Domain Admins'], per_type: { bucket: 5, db: 1000 } };
+  const marked = allChunks(gen(base.edges as object[], 2000, { crown_jewels: crown }));
+  const plain = allChunks(gen(base.edges as object[], 2000, { crown_jewels: {} }));
+  assert.deepEqual(marked.edges, plain.edges);
+
+  const jewels = marked.nodes.filter((n) => n.criticality === 'extreme_impact');
+  const of = (type: string) => jewels.filter((n) => n.type === type);
+  assert.deepEqual(
+    of('ad_group').map((n) => n.name),
+    plain.nodes
+      .filter((n) => n.type === 'ad_group' && n.name.startsWith('Domain Admins'))
+      .map((n) => n.name),
+  );
+  assert.equal(of('bucket').length, 5);
+  // Asking for more than the company has marks every one: 2,000 employees x 0.005 dbs.
+  assert.equal(of('db').length, 10);
+  assert.equal(jewels.length, 16);
+});
+
+test('hub grants: Domain Users is local admin on a share of workstations, and only those', () => {
+  const grant = {
+    from: '@Domain Users',
+    kind: 'local admin',
+    to: 'host',
+    tier: 2,
+    share: 0.6,
+    source: 'test',
+  };
+  const g = gen([], 5000, { hub_grants: [grant] });
+  const { nodes, edges, byId } = allChunks(g);
+  const du = g.backbone.byName.get('@Domain Users')?.entityId;
+  const granted = edges.filter((e) => e.src === du && e.kind === 'local_admin');
+  const workstations = nodes.filter((n) => n.type === 'host' && n.tier === 2);
+  assert.ok(
+    granted.every((e) => byId.get(e.dst)?.tier === 2),
+    'workstations only',
+  );
+  const share = granted.length / workstations.length;
+  assert.ok(Math.abs(share - 0.6) < 0.05, `share ${share}`);
+  // Each host draws from its own stream, so the same seed gives the same grants.
+  assert.deepEqual(gen([], 5000, { hub_grants: [grant] }).chunk(2).edges, g.chunk(2).edges);
+});
+
+test('hub grants that cannot work with this company fail up front', () => {
+  const grant = { kind: 'local admin', to: 'host', share: 0.5, source: 'test' };
+  assert.throws(
+    () => gen([], 2000, { hub_grants: [{ ...grant, from: '@Nobody' }] }),
+    /hub_grants: from "@Nobody" is not a company name/,
+  );
+  assert.throws(
+    () => gen([], 2000, { hub_grants: [{ ...grant, from: '@Everyone' }] }),
+    /@Everyone is an okta_group, and okta_group -\[local admin\]-> host is not a triple/,
+  );
+  assert.throws(
+    () => gen([], 2000, { crown_jewels: { names: ['@Nobody'] } }),
+    /crown_jewels\.names: "@Nobody" is not a company name/,
+  );
+});

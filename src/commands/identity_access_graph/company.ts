@@ -37,6 +37,9 @@ const HOST_TIERS: Array<[Tier, number]> = [
   [2, 0.85],
 ];
 
+/** The share of hosts in a tier. */
+export const hostTierShare = (tier: Tier): number => HOST_TIERS.find(([t]) => t === tier)?.[1] ?? 0;
+
 /** Generated AD groups that administer hosts of a tier (guess). */
 const AD_GROUP_TIERS: Array<[Tier | undefined, number]> = [
   [0, 0.02],
