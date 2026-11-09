@@ -55,7 +55,13 @@ export const EMPLOYEE_TYPES: readonly NodeType[] = ['okta_user', 'ad_acct', 'hos
 const ONE_PER_EMPLOYEE = ['okta_user', 'ad_acct'];
 
 const OKTA_BUILT_INS = ['Everyone'];
-const AD_BUILT_INS = ['Domain Users', 'Domain Admins', 'Domain Computers', 'Enterprise Admins'];
+const AD_BUILT_INS = [
+  'Domain Users',
+  'Domain Admins',
+  'Domain Computers',
+  'Enterprise Admins',
+  'Administrators',
+];
 const DEPARTMENT_NAMES = DEPARTMENTS.map((d) => d.name);
 
 const WORDS = [

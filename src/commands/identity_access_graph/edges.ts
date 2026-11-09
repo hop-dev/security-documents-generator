@@ -82,6 +82,18 @@ const checkRows = (p: Profile, bb: Backbone) => {
       );
     }
   }
+  for (const e of p.namedEdges) {
+    const from = bb.byName.get(e.from);
+    const to = bb.byName.get(e.to);
+    if (!from || !to) {
+      throw new Error(`profile: named_edges: "${from ? e.to : e.from}" is not a company name`);
+    }
+    if (!findTriple(from.type, e.kind, to.type)) {
+      throw new Error(
+        `profile: named_edges: ${from.type} -[${e.kind}]-> ${to.type} is not a triple`,
+      );
+    }
+  }
   for (const r of p.edges) {
     const where = `profile: edges ${label(r)}`;
     for (const pk of r.targets) {
@@ -261,7 +273,16 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
 
   const edgesFor = (r: EdgeRow, src: CompanyNode, out: EdgeDoc[]) => {
     // Keyed by the profile's source name, so an admin_acct row draws apart from its ad_acct row.
-    const rng = rngFor(p.seed, 'edges', rowSource(r), r.kind, r.to, src.entityId);
+    // A repeated row adds its number, so it draws apart while the first row's draws don't change.
+    const rng = rngFor(
+      p.seed,
+      'edges',
+      rowSource(r),
+      r.kind,
+      r.to,
+      src.entityId,
+      ...(r.repeat ? [r.repeat] : []),
+    );
     const k = drawCount(r.perSource, rng);
     if (k === 0) return;
     for (const dst of targetsFor(r, src, k, rng)) {
@@ -332,6 +353,11 @@ export const companyGenerator = (p: Profile, now: Date): CompanyGenerator => {
   }
   for (const e of planted.edges) backboneEdges.push(ruleEdge(e.from, e.kind, e.to));
   backboneEdges.push(...grantEdges([...byType.values()].flat()));
+  for (const e of p.namedEdges) {
+    backboneEdges.push(
+      ruleEdge(bb.byName.get(e.from) as CompanyNode, e.kind, bb.byName.get(e.to) as CompanyNode),
+    );
+  }
 
   /** Company employees in this chunk who join planted groups. */
   const membershipEdges = (nodes: CompanyNode[]): EdgeDoc[] => {

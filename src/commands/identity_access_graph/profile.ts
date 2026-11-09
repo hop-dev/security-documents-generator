@@ -44,6 +44,8 @@ export interface EdgeRow {
   targets: Picker[];
   /** Where the numbers come from ("guess", "ADSynth", ...). */
   source: string;
+  /** 2 and up for a later row with the same source, kind and target type, so it draws apart. */
+  repeat?: number;
 }
 
 /** The row's source as the profile names it: a node type, or `admin_acct`. */
@@ -72,6 +74,16 @@ export interface HubGrant {
   source: string;
 }
 
+/** One edge between two named company nodes, such as a built-in group nesting. */
+export interface NamedEdge {
+  /** Company nodes by `@` name. */
+  from: string;
+  kind: string;
+  to: string;
+  /** Where the edge comes from ("AD built-in", ...). */
+  source: string;
+}
+
 export interface Profile {
   seed: number;
   employees: number;
@@ -84,6 +96,7 @@ export interface Profile {
   blindSpots: Partial<Record<NodeType, number>>;
   crownJewels: CrownJewels;
   hubGrants: HubGrant[];
+  namedEdges: NamedEdge[];
 }
 
 const TOP_KEYS = [
@@ -97,6 +110,7 @@ const TOP_KEYS = [
   'blind_spots',
   'crown_jewels',
   'hub_grants',
+  'named_edges',
 ];
 
 const TIERS: readonly Tier[] = [0, 1, 2];
@@ -165,6 +179,27 @@ const parseHubGrant = (raw: unknown, i: number): HubGrant => {
     share: share as number,
     source: source as string,
   };
+};
+
+const parseNamedEdge = (raw: unknown, i: number): NamedEdge => {
+  const where = `named_edges[${i}]`;
+  if (!isObj(raw)) return fail(`${where}: must be an object`);
+  checkKeys(raw, ['from', 'kind', 'to', 'source'], where);
+  const { from, kind, to, source } = raw;
+  if (!isAtName(from)) fail(`${where}.from: an @ name, e.g. "@Domain Admins"`);
+  if (!isAtName(to)) fail(`${where}.to: an @ name, e.g. "@Administrators"`);
+  if (typeof kind !== 'string' || !TRIPLES.some((t) => t.kind === kind)) {
+    fail(`${where}.kind: no triple has kind "${kind}"`);
+  }
+  if (typeof source !== 'string' || source === '')
+    fail(`${where}.source: say where the edge comes from ("AD built-in", ...)`);
+  return { from: from as string, kind: kind as string, to: to as string, source: source as string };
+};
+
+const parseNamedEdges = (raw: unknown): NamedEdge[] => {
+  if (raw === undefined) return [];
+  if (!Array.isArray(raw)) return fail('named_edges must be a list');
+  return raw.map(parseNamedEdge);
 };
 
 const parseHubGrants = (raw: unknown): HubGrant[] => {
@@ -308,6 +343,17 @@ const orderRows = (rows: EdgeRow[]): EdgeRow[] => {
   return done.map((i) => rows[i]);
 };
 
+/** Numbers rows that repeat an earlier row's source, kind and target type, from 2. */
+const numberRepeats = (rows: EdgeRow[]): EdgeRow[] => {
+  const seen = new Map<string, number>();
+  return rows.map((r) => {
+    const key = tripleLabel(rowSource(r), r.kind, r.to);
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    return n === 1 ? r : { ...r, repeat: n };
+  });
+};
+
 export interface ProfileOverrides {
   employees?: number;
   seed?: number;
@@ -364,7 +410,7 @@ export const loadProfile = (raw: unknown, overrides: ProfileOverrides = {}): Pro
     seed,
     employees,
     perEmployee,
-    edges: orderRows(rows),
+    edges: orderRows(numberRepeats(rows)),
     logonCount: parseDistribution(raw.logon_count, 'profile: logon_count'),
     arraysCap:
       raw.arrays_cap === undefined
@@ -374,6 +420,7 @@ export const loadProfile = (raw: unknown, overrides: ProfileOverrides = {}): Pro
     blindSpots,
     crownJewels: parseCrownJewels(raw.crown_jewels),
     hubGrants: parseHubGrants(raw.hub_grants),
+    namedEdges: parseNamedEdges(raw.named_edges),
   };
 };
 
